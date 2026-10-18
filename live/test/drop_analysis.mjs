@@ -2,12 +2,13 @@ import { chromium } from 'playwright-core';
 const files = process.argv.slice(2);
 const b = await chromium.launch({ executablePath:'/usr/bin/google-chrome', args:['--no-sandbox'] });
 async function harness(cfg){
-  const sr=44100, bars=cfg.bars, secs=bars*16*60/cfg.bpm/4+1.5;
-  const saved=JSON.stringify(S); Object.assign(S,{style:cfg.style,crash:cfg.crash,riser:true,fill:true,dropManual:false});
+  const sr=44100, bars=cfg.bars, secs=bars*16*60/(cfg.bpm-3)/4+1.5;
+  const saved=JSON.stringify(S); Object.assign(S,{band:cfg.band||'b120',style:cfg.style,crash:cfg.crash,riser:true,fill:true,dropManual:false});
   const oc=new OfflineAudioContext(4,Math.ceil(sr*secs),sr);
   const e=new Engine(oc,cfg.seed>>>0);
   // kick drops are now planned by the conductor (2 bars before every 16-bar phrase end), no panel auto-drop any more
-  if(cfg.auto)for(let b0=14;b0<bars;b0+=16)e.cond.addEvent({bar:b0,type:"break",len:2,btype:"kick",label:"test"});
+  // cfg.recipes: use the conductor's recipe generator (variety) instead of the classic default recipe
+  if(cfg.auto)for(let b0=14;b0<bars;b0+=16)e.cond.addEvent({bar:b0,type:"break",len:2,btype:"kick",label:"test",recipe:cfg.recipes?e.cond.kickRecipe({len:2}):null});
   const probes=!!e.hpCtl;
   if(probes){const m=oc.createChannelMerger(4);e.hpCtl.connect(m,0,2);e.lvlCtl.connect(m,0,3);m.connect(oc.destination);}
   const rets=[],norms=[],starts=[];let prevDrop=false;
@@ -28,7 +29,7 @@ async function harness(cfg){
   const agg=a=>{const s=[...a].sort((x,y)=>x-y);return {med:+s[Math.floor(s.length/2)].toFixed(3),max:+s[s.length-1].toFixed(3)};};
   const nm=norms.map(metrics), rm=rets.map(metrics), sm=starts.map(metrics);
   let pk=0,nan=0;for(const x of [L,R])for(let i=0;i<x.length;i++){if(!Number.isFinite(x[i]))nan++;else pk=Math.max(pk,Math.abs(x[i]));}
-  const out={cfg:`${cfg.style} bpm${cfg.bpm} ${cfg.auto?'auto':'manual'} crash:${cfg.crash}`,peakDb:+(20*Math.log10(pk)).toFixed(2),nan,
+  const out={cfg:`${cfg.band||'b120'}:${cfg.style} bpm${cfg.bpm}${cfg.recipes?' recipes':''} ${cfg.auto?'auto':'manual'} crash:${cfg.crash}`,peakDb:+(20*Math.log10(pk)).toFixed(2),nan,
     returns:rets.map(x=>+x.toFixed(3)),
     normal:{d2:agg(nm.map(m=>m.d2)),hfDropDb:agg(nm.map(m=>m.hfDropDb))},
     atReturn:rm.map(m=>({d2:+m.d2.toFixed(3),hfDropDb:+m.hfDropDb.toFixed(2)})),
@@ -44,8 +45,9 @@ for (const f of files){
   const p=await b.newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
   await p.goto('file://'+f);
   console.log('=== '+f);
-  const cfgs=[{style:'minimal',bpm:125,seed:42,auto:true,bars:34,crash:false},{style:'hard',bpm:142,seed:42,auto:true,bars:34,crash:false},
-    {style:'tribal',bpm:128,seed:5,auto:false,manual:[5,7],bars:12,crash:false},{style:'minimal',bpm:125,seed:42,auto:true,bars:18,crash:true},{style:'groove',bpm:134,seed:3,auto:false,manual:[3,4],bars:8,crash:true}];
+  const cfgs=[{style:'minimal',bpm:124,seed:42,auto:true,bars:34,crash:false},{style:'hard',band:'b140',bpm:144,seed:42,auto:true,bars:34,crash:false},{style:'hard',band:'b120',bpm:129,seed:42,auto:true,bars:34,crash:false},
+    {style:'groove',band:'b140',bpm:137,seed:8,auto:true,recipes:true,bars:50,crash:true},{style:'minimal',bpm:124,seed:9,auto:true,recipes:true,bars:50,crash:true},
+    {style:'tribal',bpm:124,seed:5,auto:false,manual:[5,7],bars:12,crash:false},{style:'minimal',bpm:124,seed:42,auto:true,bars:18,crash:true},{style:'groove',bpm:124,seed:3,auto:false,manual:[3,4],bars:8,crash:true}];
   for(const c of cfgs){ console.log(JSON.stringify(await p.evaluate(`(${harness.toString()})(${JSON.stringify(c)})`))); }
   console.log('errors',errs); await p.close();
 }

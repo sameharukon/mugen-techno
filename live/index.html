@@ -55,16 +55,26 @@ input[type=text]{width:100%;background:#0b0c0f;color:var(--fg);border:1px solid 
 input[type=range]{width:100%;accent-color:var(--acc)}
 #viz{width:100%;height:170px;display:block;background:#0b0c0f;border:1px solid var(--line);border-radius:10px;margin:0 0 12px}
 .status{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.bandsel{display:flex;gap:0}.bandsel button{border-radius:0;padding:10px 12px}.bandsel button:first-child{border-radius:8px 0 0 8px}.bandsel button:last-child{border-radius:0 8px 8px 0}
+.bandsel button.on{background:#2b6cb0;border-color:#2b6cb0;color:#fff;font-weight:700}
+.setl{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:11px}
+.setl .bd{background:#2b6cb0;color:#fff;border-radius:4px;padding:2px 7px;font-weight:700}
+.setl .ph{color:var(--dim)}
+.setl i{font-style:normal;border:1px solid var(--line);border-radius:4px;padding:2px 6px;color:var(--fg)}
+.setl i.cur{border-color:var(--acc);color:var(--acc)}.setl i small{color:var(--dim);font-size:10px;margin-left:3px}
+.arc{display:flex;gap:2px;margin-top:6px}.arc span{flex:1;text-align:center;font-size:10px;color:var(--dim);border-bottom:3px solid #262a31;padding-bottom:2px}
+.arc span.on{color:var(--acc2);border-color:var(--acc2)}
 </style>
 </head>
 <body>
 <main>
 <h1>TECHNO LIVE — 意図で操るDJ</h1>
-<div class="sub">数値ではなく「どうしたいか」を伝えてください。指揮者（コンダクター）がフレーズ単位でDJのように少しずつ変えていきます。ブレイクは種類を指定することも、おまかせにすることもできます。終わった予定は「消化した予定」に残ります。（スペース：再生/停止 ・ K：キック抜き）</div>
+<div class="sub">数値ではなく「どうしたいか」を伝えてください。指揮者（コンダクター）がフレーズ単位でDJのように少しずつ変えていきます。セットは120帯／140帯のテンポ帯ごとに組まれ、帯の中でゆっくり流れます。ブレイクは種類を指定することも、おまかせにすることもできます。終わった予定は「消化した予定」に残ります。（スペース：再生/停止 ・ K：キック抜き）</div>
 <div class="top">
   <button id="play" class="play">▶ スタート</button>
   <button id="drop" class="drop">キック抜き（K）</button>
   <button id="auto" class="tog">おまかせ：オフ</button>
+  <div class="bandsel" title="セットのテンポ帯（途中で切り替えるとビートレスのブリッジでテンポを移行）"><button id="bandb120" data-band="b120" class="on">120帯</button><button id="bandb140" data-band="b140">140帯</button></div>
   <div class="vol">音量 <input id="vol" type="range" min="0" max="1" step="0.01" value="0.8"></div>
   <span class="status" id="status">停止中</span>
 </div>
@@ -80,8 +90,11 @@ input[type=range]{width:100%;accent-color:var(--acc)}
   </div>
   <div class="card">
     <div class="h"><span>いまの状態</span><span id="phrase">フレーズ — </span></div>
-    <div class="styles"><span id="nowStyle">ミニマル</span><span class="arrow" id="arrow"></span><span class="next" id="nextStyle"></span><span class="status" id="bpm" style="margin-left:auto">125 BPM</span></div>
+    <div class="styles"><span id="nowStyle">ミニマル</span><span class="arrow" id="arrow"></span><span class="next" id="nextStyle"></span><span class="status" id="bpm" style="margin-left:auto">124 BPM</span></div>
+    <div class="setl" id="setlist"></div>
+    <div class="arc" id="arc"></div>
     <div class="prog"><div id="mixbar"></div></div><div class="status" id="mixinfo">ミックスなし</div>
+    <div class="status" id="upinfo"></div>
     <div class="meters" id="meters"></div>
     <div class="h" style="margin-top:10px"><span>これからの予定</span></div>
     <ul id="timeline"><li><span>—</span><span>予定なし（ホールド中）</span></li></ul>
@@ -96,11 +109,42 @@ const KEYS=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 const MINOR_PENT=[0,3,5,7,10];
 const PARTS=["kick","hat","clap","perc","bass","stab"];
 const PART_JA={kick:"キック",hat:"ハット",clap:"クラップ",perc:"パーカッション",bass:"ベース",stab:"上モノ"};
-const STYLES={minimal:{ja:"ミニマル",bpm:125},hard:{ja:"ハードテクノ",bpm:142},groove:{ja:"ハードグルーヴ",bpm:134},tribal:{ja:"トライバル",bpm:128},broken:{ja:"ブレイクビート風",bpm:128}};
+// style families; the actual name / tempo / kick flavour depends on the set's tempo band (STYLE_BAND, KICK_BAND)
+const STYLES={minimal:{ja:"ミニマル",bpm:124},hard:{ja:"ハードテクノ",bpm:144},groove:{ja:"ハードグルーヴ",bpm:136},tribal:{ja:"トライバル",bpm:126},broken:{ja:"ブレイクビート風",bpm:125}};
 // base settings (詳細設定). The conductor's intent parameters modulate these.
-const S={key:9,cutoff:0.5,sweep:true,dmix:0.35,dfb:0.42,variation:0.5,vol:0.8,style:"minimal",
+const S={key:9,cutoff:0.5,sweep:true,dmix:0.35,dfb:0.42,variation:0.5,vol:0.8,style:"minimal",band:"b120",
   dropManual:false,fill:true,riser:true,crash:true,
   };
+// ---------- Tempo bands (set modes) ----------
+// A set stays in one tempo band; styles have a variant per band, the tempo only drifts slowly (<= 0.5 BPM / phrase).
+const BANDS={
+  b120:{ja:"120帯",min:121,max:130,center:125,start:123.5,first:"minimal",arc:{warm:123,build:125,peak:127.5,release:125},
+    pool:{warm:["minimal","broken"],build:["tribal","groove","broken"],peak:["hard","groove","tribal"],release:["minimal","broken","tribal"]}},
+  b140:{ja:"140帯",min:134,max:148,center:140,start:137,first:"groove",arc:{warm:137,build:140,peak:144,release:140},
+    pool:{warm:["groove","minimal"],build:["tribal","groove","broken"],peak:["hard","tribal","hard"],release:["groove","minimal","tribal"]}}};
+const PHASES=["warm","build","peak","release"],PHASE_JA={warm:"ウォームアップ",build:"ビルド",peak:"ピーク",release:"リリース"},PHASE_E={warm:.38,build:.6,peak:.88,release:.5};
+const STYLE_BAND={b120:{minimal:{bpm:124,ja:"ミニマル"},tribal:{bpm:126,ja:"トライバル"},broken:{bpm:125,ja:"ブロークン"},groove:{bpm:127,ja:"グルーヴィー"},hard:{bpm:129,ja:"インダストリアル"}},
+  b140:{minimal:{bpm:138,ja:"ハイプノティック"},groove:{bpm:136,ja:"ハードグルーヴ"},tribal:{bpm:140,ja:"ピークタイム・トライバル"},broken:{bpm:139,ja:"ブロークン（速め）"},hard:{bpm:144,ja:"ハードテクノ"}}};
+const styleJa=(st,band=S.band)=>(STYLE_BAND[band]&&STYLE_BAND[band][st]||STYLES[st]).ja;
+// kick timbre as continuous parameters (drive = hard saturation share, rumble = reverb/distortion tail send)
+const KICK_BASE={minimal:{f0:160,f1:48,sw:0.12,tau:0.16,click:0.35,len:0.6,drive:0,rumble:0},
+  hard:{f0:200,f1:46,sw:0.09,tau:0.22,click:0.45,len:0.8,drive:1,rumble:1},
+  groove:{f0:170,f1:52,sw:0.06,tau:0.085,click:0.55,len:0.4,drive:0.1,rumble:0},
+  tribal:{f0:140,f1:43,sw:0.13,tau:0.18,click:0.25,len:0.6,drive:0,rumble:0.05},
+  broken:{f0:165,f1:48,sw:0.1,tau:0.13,click:0.4,len:0.5,drive:0.05,rumble:0}};
+// band flavour: in the 140 set every kick is somewhat driven/rumbly (close to the hard kick); the 120 set's industrial kick is milder
+const KICK_BAND={b120:{hard:{f0:185,drive:0.55,rumble:0.5,tau:0.19,len:0.7}},
+  b140:{minimal:{drive:0.4,rumble:0.4,tau:0.18,len:0.65},groove:{drive:0.5,rumble:0.3,tau:0.11,len:0.5},tribal:{drive:0.4,rumble:0.45,tau:0.19,len:0.65},broken:{drive:0.45,rumble:0.25,len:0.55}}};
+const kickParams=(st,band)=>({...KICK_BASE[st],...((KICK_BAND[band]||{})[st]||{})});
+const kickDist=(a,b)=>Math.abs(a.drive-b.drive)+Math.abs(a.rumble-b.rumble)+Math.abs(a.tau-b.tau)*4+Math.abs(a.f0-b.f0)/100;
+// kick-drop recipes
+const KD_REM_JA={kick:"キックのみ",kickbass:"キック＋ベース",lowcut:"ローカット",thin:"細いキック",beat1:"1拍目だけ",offbeat:"裏打ちキック"};
+const KD_FILL_JA={snare16:"スネア16分",snareBuild:"スネア加速",triplet:"3連スネア",kickroll8:"キックロール8分",kickroll16:"キックロール16分",tom:"タムフィル",revcym:"リバースシンバル",gap:"無音ギャップ",echo:"エコースロー",none:"フィルなし"};
+const KD_RISER_JA={noise:"ノイズライザー",pitch:"ピッチライザー",none:""};
+const KD_IMP_JA={crash:"クラッシュ",boom:"サブブーム",crashboom:"クラッシュ＋ブーム",none:"インパクトなし"};
+const kdName=R=>[R.micro?(R.micro===2?"半拍":"1拍"):`${R.len}小節`,KD_REM_JA[R.remove],KD_FILL_JA[R.fill],KD_RISER_JA[R.riser],KD_IMP_JA[R.impact]].filter(Boolean).join("・")+(R.pos==="pickup"?"（フレーズ途中）":"");
+const KD_DEFAULT={remove:"kick",fill:"snare16",riser:"noise",impact:"crash",micro:0};
+
 const cutoffHz=v=>Math.round(120*Math.pow(2000/120,v));
 const keyOff=()=>(((S.key-9)+17)%12-5);
 const mtof=m=>440*Math.pow(2,(m-69)/12);
@@ -119,8 +163,10 @@ const BREAKS={
   stutter:  {ja:"スタッター",len:[1,1],def:1,energy:[.35,1],tension:.7,fill:false,crash:true,desc:"後半2拍を8分→16分→32分で連打（ビートリピート）"},
   echo:     {ja:"エコーアウト",len:[1,2],def:1,energy:[0,1],tension:.5,fill:false,crash:true,desc:"ドライを切ってダブ・ディレイの残響だけを残す"},
   halftime: {ja:"ハーフタイム",len:[4,8],def:4,energy:[.3,1],tension:.45,fill:true,crash:true,desc:"キック1拍目・スネア3拍目の半分のノリ、ベースも半分の速さに"},
-  silence:  {ja:"サイレンス",len:[1,1],def:1,energy:[.3,1],tension:.7,fill:false,crash:true,desc:"最後の1拍だけほぼ無音にしてドロップ"}};
-const BREAK_ORDER=Object.keys(BREAKS);
+  silence:  {ja:"サイレンス",len:[1,1],def:1,energy:[.3,1],tension:.7,fill:false,crash:true,desc:"最後の1拍だけほぼ無音にしてドロップ"},
+  // internal: used only for tempo-band changes (beatless, tempo moves while no kick plays)
+  bridge:   {ja:"アンビエント・ブリッジ",len:[6,8],def:8,energy:[0,1],tension:.3,fill:false,crash:true,internal:true,desc:"ビートレスのパッドだけにして、その間にテンポを切り替える"}};
+const BREAK_ORDER=Object.keys(BREAKS).filter(k=>!BREAKS[k].internal);
 const M_ALL={k:1,h:1,c:1,p:1,b:1,u:1},M_NONE={k:0,h:0,c:0,p:0,b:0,u:0};
 // style affinity for automatic choice
 const BREAK_AFFINITY={minimal:{filter:1.6,echo:1.5,perconly:1.4,kick:1.2},hard:{tapestop:1.6,stutter:1.5,hpbuild:1.5,silence:1.4},
@@ -248,6 +294,9 @@ class Engine{
     this.trim.connect(this.echoSend).connect(this.echoDL);this.echoDL.connect(this.echoLP).connect(this.echoHP);
     this.echoHP.connect(this.echoFb).connect(this.echoDL);this.echoHP.connect(this.echoOut).connect(this.vol);this.echoPreAt=-9;
     this.bus={};for(const p of PARTS){const g=c.createGain();g.gain.value=1;g.connect(this.sum);this.bus[p]=g;}
+    // low-cut on the kick / bass buses (kick-drop variants "ローカット" / "細いキック"); idle at 12 Hz
+    this.lc={};for(const p of ["kick","bass"]){const f=c.createBiquadFilter();f.type="highpass";f.Q.value=0.7;f.frequency.value=12;
+      this.bus[p].disconnect();this.bus[p].connect(f).connect(this.sum);this.lc[p]=new Env(f.frequency,12);}
     this.fillBus=c.createGain();this.fillBus.gain.value=1;this.fillBus.connect(this.sum);
     this.riserBus=c.createGain();this.riserBus.connect(this.vol); // riser bypasses the master HPF
     // persistent riser voice: looped noise -> bandpass (freq from riserFreq) -> gain (level from riserLvl)
@@ -285,7 +334,8 @@ class Engine{
     this.dL.connect(this.panL).connect(this.wet);this.dL.connect(this.fbL).connect(this.dR);
     this.dR.connect(this.panR).connect(this.wet);this.dR.connect(this.fbR).connect(this.dL);
     this.wet.connect(this.bus.stab);
-    this.bpm=STYLES[S.style].bpm;this.bpmGlide=null;this.setBpm(this.bpm,0);
+    this.bpm=BANDS[S.band].start;this.bpmGlide=null;this.setBpm(this.bpm,0);
+    this.kp=kickParams(S.style,S.band);this.kMorph=null;this.motifSeq=0;this.upLog=[];this.kpLog=[];this.arrLog=[];
     this.step=0;this.nextTime=0;this.bar=0;this.onStep=null;
     this.initUpper();this.decks=[this.makeDeck(S.style,true)];this.low=this.decks[0];this.cur=this.low.out;this.cond=new Conductor(this);
     this.drop={active:false,type:"kick",src:null,endBar:-1,startBar:0,len:0,armed:false,tr:0,riserOn:false,spaceBoost:0};this.returnTimes=[];this.dropTimes=[];
@@ -294,7 +344,7 @@ class Engine{
   }
   dispose(t){for(const n of [this.riserSrc,this.rfCtl,this.lvlCtl,this.hpCtl,...UPSTYLES.map(st=>this["upCtl_"+st]),...this.decks.map(d=>d.ctl)]){try{n.stop(t);}catch(_){}}}
   // ----- decks (DJ-style: two independent pattern engines can coexist during a mix) -----
-  makeDeck(style,initial){const c=this.ctx,d={style,id:this.deckSeq++,pat:new Patterns(this.rand),kickBar:new Array(16).fill(0),upOn:true,topOn:true,out:{}};
+  makeDeck(style,initial){const c=this.ctx,d={style,id:this.deckSeq++,pat:new Patterns(this.rand),kickBar:new Array(16).fill(0),upOn:true,topOn:true,out:{},arr:{variant:0,init:false}};
     d.ctl=c.createConstantSource();d.ctl.start();
     for(const p of ["hat","clap","perc"]){const g=c.createGain();g.gain.value=0;d.ctl.connect(g.gain);g.connect(this.bus[p]);d.out[p]=g;}
     d.topEnv=new Env(d.ctl.offset,initial?1:0);return d;}
@@ -325,19 +375,15 @@ class Engine{
   noiseSrc(t,dur){const s=this.ctx.createBufferSource();s.buffer=this.noise;s.start(t,this.rand()*1.5,dur+0.01);return s;}
 
   // ----- drums -----
-  kick(t,vel=1,st=this.low.style){const c=this.ctx;
-    const P={minimal:{f0:160,f1:48,sw:0.12,tau:0.16,click:0.35,dest:this.kickSat,len:0.6},
-             hard:{f0:200,f1:46,sw:0.09,tau:0.22,click:0.45,dest:this.kickHard,len:0.8},
-             groove:{f0:170,f1:52,sw:0.06,tau:0.085,click:0.55,dest:this.kickSat,len:0.4},
-             tribal:{f0:140,f1:43,sw:0.13,tau:0.18,click:0.25,dest:this.kickSat,len:0.6},
-             broken:{f0:165,f1:48,sw:0.1,tau:0.13,click:0.4,dest:this.kickSat,len:0.5}}[st];
+  // kick timbre comes from this.kp (continuous; morphs during a mix): soft/hard saturation crossfade + rumble send
+  kick(t,vel=1){const c=this.ctx,P=this.kp;
     const o=c.createOscillator(),g=c.createGain();o.type="sine";
     o.frequency.setValueAtTime(P.f0,t);o.frequency.exponentialRampToValueAtTime(P.f1,t+P.sw);o.frequency.setTargetAtTime(P.f1-4,t+P.sw,0.1);
     g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vel,t+0.002);g.gain.setTargetAtTime(0,t+0.01,P.tau);
-    const fo=this.fade(t+P.len,25);
-    o.connect(g).connect(fo).connect(P.dest);
-    const extra=[fo];
-    if(st==="hard"){const sg=c.createGain();sg.gain.value=1;fo.connect(sg).connect(this.rumbleIn);extra.push(sg);
+    const fo=this.fade(t+P.len,25);o.connect(g).connect(fo);const extra=[fo];
+    if(P.drive<0.999){const gs=c.createGain();gs.gain.value=1-P.drive;fo.connect(gs).connect(this.kickSat);extra.push(gs);}
+    if(P.drive>0.001){const gh=c.createGain();gh.gain.value=P.drive;fo.connect(gh).connect(this.kickHard);extra.push(gh);}
+    if(P.rumble>0.01){const sg=c.createGain();sg.gain.value=P.rumble;fo.connect(sg).connect(this.rumbleIn);extra.push(sg);
       // rumble sidechain: duck under the kick, swell between kicks
       const rd=this.rduck.gain;rd.setValueAtTime(0,t);rd.setTargetAtTime(1,t+0.07,0.05);}
     o.start(t);o.stop(t+P.len);this.free(o,g,...extra);
@@ -348,6 +394,14 @@ class Engine{
     const d=this.duck.gain,depth=1-0.6*Math.min(1,vel);d.setValueAtTime(1,t);d.linearRampToValueAtTime(depth,t+0.004);d.setTargetAtTime(1,t+0.03,0.07);
     this.stats.kicks++;
   }
+  // gradual kick morph: rumble arrives early / leaves late, saturation arrives late / leaves early, the rest is linear
+  startKickMorph(to,bars,b0){this.kMorph={from:{...this.kp},to,b0,bars:Math.max(1,bars)};}
+  updateKickMorph(){const K=this.kMorph;if(!K||this.bar<K.b0)return;const x=Math.min(1,(this.bar-K.b0+1)/K.bars),c01=v=>Math.max(0,Math.min(1,v)),P={};
+    for(const k of Object.keys(K.to)){const a=K.from[k],b=K.to[k];let f=x;
+      if(k==="rumble")f=b>a?c01(x*1.7):c01((x-0.4)/0.6);
+      else if(k==="drive")f=b>a?c01((x-0.35)/0.65):c01(x*1.7);
+      P[k]=a+(b-a)*f;}
+    this.kp=P;if(x>=1)this.kMorph=null;}
   hat(t,vel,dur,tau,pan,freq=7000,bus=this.cur.hat,type="highpass"){const c=this.ctx;
     const n=this.noiseSrc(t,Math.max(dur,tau*9)),hp=c.createBiquadFilter(),g=c.createGain(),p=c.createStereoPanner();
     hp.type=type;hp.frequency.value=freq;hp.Q.value=type==="bandpass"?2:0.7;p.pan.value=pan;
@@ -424,13 +478,45 @@ class Engine{
   breakPre(type,t){if(type!=="echo")return;this.echoPreAt=t;
     this.echoOutEnv.hold(t);this.echoOutEnv.lin(1,t+0.02);this.echoFbEnv.hold(t);this.echoFbEnv.lin(0.62,t+0.05);
     this.echoSendEnv.hold(t);this.echoSendEnv.lin(0.9,t+0.015);}
-  dropStart(t,src,lenBars,type="kick"){const D=this.drop,B=BREAKS[type]||BREAKS.kick;if(!BREAKS[type])type="kick";
+  // reverse cymbal: noise swelling into tr, cut right on the downbeat
+  revCym(t0,tr,dest=this.fillBus,lvl=0.09){const c=this.ctx;if(tr-t0<0.05)return;
+    for(const pan of [-0.5,0.5]){const n=c.createBufferSource();n.buffer=this.noise;n.loop=true;
+      const hp=c.createBiquadFilter(),pk=c.createBiquadFilter(),g=c.createGain(),p=c.createStereoPanner();
+      hp.type="highpass";hp.frequency.value=3500;pk.type="peaking";pk.frequency.value=8000;pk.gain.value=5;p.pan.value=pan;
+      g.gain.setValueAtTime(0.0004,t0);g.gain.exponentialRampToValueAtTime(lvl,tr-0.006);g.gain.linearRampToValueAtTime(0,tr);
+      n.connect(hp).connect(pk).connect(g).connect(p).connect(dest);n.start(t0,this.rand());n.stop(tr+0.02);this.free(n,hp,pk,g,p);}}
+  // sub boom on the return downbeat
+  boom(t){const c=this.ctx,o=c.createOscillator(),g=c.createGain();o.type="sine";
+    o.frequency.setValueAtTime(70,t);o.frequency.exponentialRampToValueAtTime(34,t+0.9);
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.42,t+0.006);g.gain.setTargetAtTime(0,t+0.02,0.45);
+    o.connect(g).connect(this.bus.kick);o.start(t);o.stop(t+3);this.free(o,g);}
+  // pitched riser (saw sweeping up into tr), bypasses the master HPF
+  pitchRiser(t0,tr){const c=this.ctx;if(tr-t0<0.1)return;const o=c.createOscillator(),o2=c.createOscillator(),bp=c.createBiquadFilter(),g=c.createGain();
+    o.type="sawtooth";o2.type="sawtooth";o2.detune.value=14;
+    for(const x of [o,o2]){x.frequency.setValueAtTime(180,t0);x.frequency.exponentialRampToValueAtTime(1500,tr);}
+    bp.type="bandpass";bp.Q.value=1.5;bp.frequency.setValueAtTime(600,t0);bp.frequency.exponentialRampToValueAtTime(4500,tr);
+    g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(0.045,tr-0.01);g.gain.linearRampToValueAtTime(0,tr+0.01);
+    o.connect(bp);o2.connect(bp);bp.connect(g).connect(this.riserBus);o.start(t0);o2.start(t0);o.stop(tr+0.03);o2.stop(tr+0.03);this.free(o,bp,g);this.free(o2);}
+  // echo throw: send the last beat(s) into the dub delay without cutting the dry signal
+  echoClose(tr){const bd=16*this.s16;this.echoSendEnv.hold(tr-0.03);this.echoSendEnv.lin(0,tr-0.002);this.echoFbEnv.hold(tr);this.echoFbEnv.lin(0.3,tr+bd);}
+  dropStart(t,src,lenBars,type="kick",o={}){const D=this.drop,B=BREAKS[type]||BREAKS.kick;if(!BREAKS[type])type="kick";
     if(type!=="kick"&&!lenBars)lenBars=B.def;
-    Object.assign(D,{active:true,type,src,startBar:this.bar,len:lenBars||0,endBar:lenBars?this.bar+lenBars:-1,armed:false,tr:0,riserOn:false,spaceBoost:0});
-    this.stats.drops++;this.dropTimes.push(t);if(this.debug)this.breakLog.push({type,t,bar:this.bar,len:lenBars});
+    let R=null;if(type==="kick")R=o.recipe||{...KD_DEFAULT,len:lenBars,fill:S.fill?"snare16":"none",riser:S.riser?"noise":"none",impact:"crash",name:"手動"};
+    Object.assign(D,{active:true,type,src,startBar:this.bar,len:lenBars||0,endBar:lenBars?this.bar+lenBars:-1,armed:false,tr:0,riserOn:false,spaceBoost:0,
+      recipe:R,dir:o.dir||null,noImpact:!!o.noImpact,toBpm:o.toBpm||null});
+    this.stats.drops++;this.dropTimes.push(t);if(this.debug)this.breakLog.push({type,t,bar:this.bar,len:lenBars,recipe:R?R.key:null,name:R?R.name:null});
     const s16=this.s16,bd=16*s16,tr=lenBars?t+lenBars*bd:0,lastBar=tr?tr-bd:0;
     switch(type){
-      case "kick":if(S.riser)this.riserFx(t,tr,lenBars>=2?480:260);break;
+      case "kick":{
+        if(R.remove==="lowcut"||R.remove==="thin"){const f=R.remove==="thin"?280:150,ta=t+Math.min(bd,Math.max(1,lenBars)*bd*0.25);
+          for(const k of R.remove==="thin"?["kick"]:["kick","bass"]){this.lc[k].hold(t);this.lc[k].exp(f,ta);}}
+        if(R.riser==="noise"&&S.riser)this.riserFx(t,tr,lenBars>=2?480:260,["kick","kickbass","beat1","offbeat"].includes(R.remove));
+        else if(R.riser==="pitch"&&tr)this.pitchRiser(Math.max(t,tr-Math.min(2,lenBars)*bd),tr);
+        break;}
+      case "bridge":{D.spaceBoost=0.4;const root=57+keyOff(),slow=Math.min(this.bpm,o.toBpm||this.bpm),dur=lenBars*16*60/slow/4,att=Math.min(3,dur*0.25);
+        for(const [m,ty,lvl,cut] of [[root-24,"sawtooth",0.03,480],[root-12,"triangle",0.03,900],[root-5,"triangle",0.022,1300],[root+3,"sine",0.016,2000]])
+          this.drone(t,dur,{midi:m,type:ty,det:10,cut,q:0.8,lvl,att,rel:2.6,lfo:0.05,depth:cut*0.35},this.padBus);
+        this.noiseWash(t,dur,0.03,this.padBus);this.brkMarks.push([t,"bridge"]);break;}
       case "breakdown":{D.spaceBoost=0.3;const root=57+keyOff(),dur=lenBars*bd,att=Math.min(4,dur*0.3);
         // atmosphere pad (minor chord, slow attack) under whatever 上モノ keeps playing
         for(const [m,ty,lvl,cut] of [[root-24,"sawtooth",0.035,520],[root-17,"sawtooth",0.022,700],[root-9,"triangle",0.03,1400]])
@@ -454,7 +540,11 @@ class Engine{
   breakMask(s){const D=this.drop;if(!D.active)return M_ALL;
     const last=D.endBar>0&&this.bar===D.endBar-1;
     switch(D.type){
-      case "kick":return {...M_ALL,k:0};
+      case "kick":{const R=D.recipe||KD_DEFAULT;
+        if(R.micro)return s>=16-R.micro?{...M_ALL,k:0,b:R.remove==="kickbass"?0:1}:M_ALL;
+        switch(R.remove){case "kickbass":return {...M_ALL,k:0,b:0};case "beat1":return {...M_ALL,k:s===0?1:0};
+          case "thin":case "lowcut":return M_ALL;default:return {...M_ALL,k:0};}}
+      case "bridge":return M_NONE;
       case "breakdown":return {...M_NONE,u:1};
       case "hpbuild":return last?{...M_ALL,k:0,b:0}:M_ALL;
       case "bassonly":return {...M_NONE,k:1,b:1};
@@ -464,14 +554,32 @@ class Engine{
       case "halftime":return {...M_ALL,k:0,c:0,b:0};
       case "silence":return last&&s>=12?M_NONE:M_ALL;
       default:return M_ALL;}}
+  // kick-drop fill in the last bar (or two); kicks played here are owned by the low deck only
+  kickFill(R,t,s,ev,L,logK){const D=this.drop,rel=D.endBar-this.bar,s16=this.s16;if(!R||rel<1||rel>2)return;
+    if(rel===2){if(R.fill==="snareBuild"&&D.len>=2&&s%4===0){this.snare(t,0.16+0.01*s);ev.fill=1;}return;}
+    switch(R.fill){
+      case "snare16":if(s>=12){this.snare(t,0.45+0.18*(s-12));ev.fill=1;if(s>=14)this.snare(t+s16/2,0.6+0.2*(s-14));}break;
+      case "snareBuild":if(s<8){if(s%2===0){this.snare(t,0.3+0.025*s);ev.fill=1;}}else{this.snare(t,0.5+0.035*(s-8));if(s>=12)this.snare(t+s16/2,0.52+0.035*(s-8));ev.fill=1;}break;
+      case "triplet":if(s===8){for(let i=0;i<6;i++)this.snare(t+i*8*s16/6,0.35+0.08*i);ev.fill=1;}break;
+      case "kickroll8":if(s>=8&&s%2===0&&s<=14){const kv=0.45+0.06*(s-8);this.kick(t,kv);logK(t);ev.kick=kv;ev.fill=1;}break;
+      case "kickroll16":if(s>=8&&(s<12?s%2===0:s<=14)){const kv=0.4+0.05*(s-8);this.kick(t,kv);logK(t);ev.kick=kv;ev.fill=1;}break;
+      case "tom":if(s>=10){this.cur=L.out;this.tom(t,s<12?2:(s<14?1:0),0.6+0.07*(s-10));if(s>=13)this.tom(t+s16/2,s<14?1:0,0.6);ev.fill=1;}break;
+      case "revcym":if(s===0){this.revCym(t+(D.len>=2||R.micro?0:4*s16),t+16*s16);ev.fill=1;}break;
+      case "echo":if(s===8)this.breakPre("echo",t);if(s===12){this.echoSendEnv.hold(t);this.echoSendEnv.lin(0,t+0.03);}break;
+      // "gap" is scheduled in armReturn (needs to sit right before the return)
+    }}
   // called in the last beat before the return, so every ramp can be placed ahead of the downbeat
-  armReturn(tr,now){const D=this.drop,B=BREAKS[D.type];D.armed=true;D.tr=tr;this.returnTimes.push(tr);
+  armReturn(tr,now){const D=this.drop,B=BREAKS[D.type],R=D.recipe;D.armed=true;D.tr=tr;this.returnTimes.push(tr);
     if(D.riserOn){
       const h=Math.max(now,tr-0.12);
       this.hpEnv.hold(h);this.hpEnv.exp(20,tr);      // smooth sweep down, lands at 20 Hz on the downbeat
       this.lvlEnv.hold(tr);this.lvlEnv.target(0,tr,0.11); // riser peaks at the downbeat then decays (~0.4 s)
       this.rfEnv.hold(tr);}
     switch(D.type){
+      case "kick":{if(!R)break;
+        if(R.remove==="lowcut"||R.remove==="thin"){const h=Math.max(now,tr-0.12);for(const k of ["kick","bass"]){this.lc[k].hold(h);this.lc[k].exp(12,tr);}}
+        if(R.fill==="gap"){const t0=Math.max(now,tr-(R.micro===2?1:2)*this.s16);this.brkEnv.hold(t0);this.brkEnv.target(0.015,t0,0.006);this.brkEnv.hold(tr-0.003);this.brkEnv.lin(1,tr+0.004);}
+        if(R.fill==="echo")this.echoClose(tr);break;}
       case "filter":{const h=Math.max(now,tr-4*this.s16);this.lpEnv.hold(h);this.lpEnv.exp(20000,tr);break;}
       // everything below happens while the break gain is ~0, then the gain ramps up over 10 ms on the downbeat
       case "tapestop":this.tape.delayTime.setValueAtTime(0,tr-0.008);this.lpEnv.set(20000,tr-0.006);
@@ -480,12 +588,16 @@ class Engine{
       case "echo":{const bd=16*this.s16;this.echoSendEnv.hold(tr-0.03);this.echoSendEnv.lin(0,tr-0.002);
         this.echoFbEnv.hold(tr);this.echoFbEnv.lin(0.25,tr+bd);this.echoOutEnv.hold(tr);this.echoOutEnv.lin(0,tr+2*bd);break;}
     }
-    if(S.crash&&B.crash) this.crash(tr);}
+    if(D.noImpact)return;
+    const imp=D.type==="kick"&&R?R.impact:(D.type==="bridge"?"crashboom":(B.crash?"crash":"none"));
+    if(S.crash&&(imp==="crash"||imp==="crashboom"))this.crash(tr);
+    if(imp==="boom"||imp==="crashboom")this.boom(tr);}
   dropEnd(t){const D=this.drop,B=BREAKS[D.type];
     if(D.src==="manual")this.cond.logItem("キック抜き（手動）：復帰","手動（K）","done",this.bar,t);
+    else if(D.type==="kick"&&D.recipe)this.cond.logItem(`キック抜き（${D.recipe.name}）：復帰`,D.meta?D.meta.src:"自動","done",this.bar,t);
     else this.cond.logItem(`${B.ja} ${D.len}小節：復帰`,D.meta?D.meta.src:"自動","done",this.bar,t);D.meta=null;
-    Object.assign(this.drop,{active:false,type:"kick",src:null,endBar:-1,armed:false,spaceBoost:0});}
-  // accelerating snare roll over the last 2 bars (component used by breakdown / hp build)
+    Object.assign(this.drop,{active:false,type:"kick",src:null,endBar:-1,armed:false,spaceBoost:0,recipe:null,dir:null,noImpact:false,toBpm:null});}
+  // accelerating snare roll over the last 2 bars (component used by breakdown / hp build / bridge up)
   buildRoll(t,s,ev){const D=this.drop,rel=D.endBar-this.bar,s16=this.s16;
     if(rel===2&&D.len>=4){if(s%2===0){this.snare(t,0.18+0.012*s);ev.fill=1;}}
     else if(rel===1){if(s<8){this.snare(t,0.32+0.025*s);ev.fill=1;}
@@ -505,14 +617,23 @@ class Engine{
     if(s===0){
       this.bar=(this.step/16)|0;
       // DJ pitch-ride: tempo glides bar by bar (constant within a bar so drop/return timing stays exact)
+      // band switch: tempo glides bar by bar, only while the beatless bridge plays
       if(this.bpmGlide){const g=this.bpmGlide;if(this.bar>=g.b0){const k=Math.min(1,(this.bar-g.b0+1)/g.bars);
         this.bpm=g.from+(g.to-g.from)*k;if(k>=1){this.bpmGlide=null;if(g.label)C.logItem(g.label+"：到達",g.src,"done",this.bar,t);}this.setBpm(this.bpm,t);}}
+      // in-band tempo drift: at most tempoRate BPM per 16-bar phrase toward the set's target (constant within a bar)
+      else if(!C.pendingBand){const tg=C.tempoTarget(),dv=tg-this.bpm,mx=C.tempoRate/16;
+        if(Math.abs(dv)>1e-4){this.bpm+=Math.max(-mx,Math.min(mx,dv));this.setBpm(this.bpm,t);}
+        if(C.tempoGoal&&Math.abs(tg-this.bpm)<0.02){C.logItem(C.tempoGoal.label+"：到達",C.tempoGoal.src,"done",this.bar,t);C.tempoGoal=null;C.tempoRate=0.5;}}
+      this.updateKickMorph();
+      if(this.debug)this.kpLog.push([this.bar,+this.kp.drive.toFixed(3),+this.kp.rumble.toFixed(3),+this.kp.tau.toFixed(3),+this.kp.f0.toFixed(1)]);
       if(this.debug)this.bpmLog.push([this.bar,+this.bpm.toFixed(3),this.low.style,this.decks.map(d=>d.style).join("+")]);
       if(D.active && D.armed) this.dropEnd(t);      // return already prepared during the previous beat
       if(D.active && !D.armed && D.type==="kick" && (D.src==="manual"||this.bar>=D.endBar||S.dropManual)){D.src="manual";D.endBar=-1;}
       C.onBar(this.bar,t);                          // conductor: intents, phrase plans, DJ mix events
       this.applyBarParams(t);
-      for(const d of this.decks){d.pat.nextBar(v);d.kickBar=this.buildKickBar(d);}
+      for(const d of this.decks){d.pat.nextBar(v);d.kickBar=this.buildKickBar(d);this.arrangeUpper(d);}
+      if(this.debug)this.arrLog.push([this.bar,this.decks.map(d=>[d.id,d.style,PATCHES[d.style][d.arr.variant].n,d.arr.section,d.arr.motif?d.arr.motif.id:0,d.arr.layer2&&this.bar%16===0?d.arr.layer2:""])]);
+      if(D.active&&D.type==="bridge"&&D.dir==="up"&&D.endBar-this.bar===2&&S.riser)this.riserFx(t,t+32*this.s16,520);   // tempo is final by now
     }
     if(S.dropManual && !D.active && s%4===0) this.dropStart(t,"manual",0);
     if(s===12 && !D.active){const pe=C.events.find(x=>x.bar===this.bar+1&&(x.type==="break"||x.type==="drop"));if(pe&&pe.btype)this.breakPre(pe.btype,t);}
@@ -521,18 +642,21 @@ class Engine{
     const ev={kick:0,hat:0,clap:0,perc:0,bass:0,stab:0,drop:D.active&&!M.k,fill:0,brk:D.active?BREAKS[D.type].ja:""};
     const L=this.low;                               // only ONE deck owns kick+bass at any time
     const logK=tt=>{if(this.debug)this.kickLog.push([tt,L.id]);};
-    if(M.k && L.kickBar[s]){this.kick(t,L.kickBar[s],L.style);ev.kick=L.kickBar[s];logK(t);}
+    if(M.k && L.kickBar[s]){this.kick(t,L.kickBar[s]);ev.kick=L.kickBar[s];logK(t);}
+    if(BT==="kick"&&D.recipe&&D.recipe.remove==="offbeat"&&!D.recipe.micro&&s%4===2&&!(last&&s===14&&/kickroll/.test(D.recipe.fill))){this.kick(t,0.55);ev.kick=0.55;logK(t);}
     if(D.active && !D.armed && s>=12 && (D.type!=="kick"||!S.dropManual) && (D.src==="manual"||this.bar===D.endBar-1))
       this.armReturn(t+(16-s)*this.s16,t);
     if(BT==="halftime"){                            // half-time: kick on 1, snare on 3, bass stretched over 2 bars
-      if(s===0||(s===10&&r()<0.35)){const kv=s?0.65:1;this.kick(t,kv,L.style);ev.kick=kv;logK(t);}
+      if(s===0||(s===10&&r()<0.35)){const kv=s?0.65:1;this.kick(t,kv);ev.kick=kv;logK(t);}
       if(s===8){this.cur=L.out;this.clap(t);this.snare(t,0.5);ev.clap=1;}
       if(s%2===0){const bn=L.pat.bass[(s>>1)+8*((this.bar-D.startBar)%2)];if(bn){this.bass(t,bn,1.8);ev.bass=1;if(this.debug)this.bassLog.push([t,L.id]);}}}
     if(BT==="stutter"&&last&&s>=8){                 // beat repeat: 8th -> 16th -> 32nd retriggers of the beat-3 slice
       const reps={8:[0],10:[0],12:[0],13:[0],14:[0,0.5],15:[0,0.5]}[s]||[],note=L.pat.bass.slice(8).find(Boolean)||{deg:0,oct:0};
       for(const f of reps){const tt=t+f*this.s16,pr=(s-8+f)/8,kv=0.55+0.45*pr;this.cur=L.out;
-        if(s<15){this.kick(tt,kv,L.style);logK(tt);}this.snare(tt,0.25+0.45*pr);this.hat(tt,0.2+0.15*pr,0.03,0.008,(r()-0.5)*0.6);this.bass(tt,note,0.5);ev.kick=kv;ev.fill=1;ev.bass=1;}}
-    if(D.active && (BT==="breakdown"||BT==="hpbuild") && D.endBar>0) this.buildRoll(t,s,ev);
+        if(s<15){this.kick(tt,kv);logK(tt);}this.snare(tt,0.25+0.45*pr);this.hat(tt,0.2+0.15*pr,0.03,0.008,(r()-0.5)*0.6);this.bass(tt,note,0.5);ev.kick=kv;ev.fill=1;ev.bass=1;}}
+    if(D.active && (BT==="breakdown"||BT==="hpbuild"||(BT==="bridge"&&D.dir==="up")) && D.endBar>0) this.buildRoll(t,s,ev);
+    else if(BT==="kick"&&D.endBar>0){if(S.fill)this.kickFill(D.recipe,t,s,ev,L,logK);}
+    else if(BT==="kick"&&D.armed&&S.fill&&s>=12){this.snare(t,0.45+0.18*(s-12));ev.fill=1;if(s>=14)this.snare(t+this.s16/2,0.6+0.2*(s-14));}
     else if(S.fill && D.active && BREAKS[BT].fill && s>=12 && D.armed){
       this.snare(t,0.45+0.18*(s-12));ev.fill=1;
       if(s>=14) this.snare(t+this.s16/2,0.6+0.2*(s-14));}
@@ -542,7 +666,7 @@ class Engine{
     const bn=L.pat.bass[s];if(M.b&&bn){this.bass(t,bn);ev.bass=1;if(this.debug)this.bassLog.push([t,L.id]);}
     let h=0;if(M.u)for(const d of this.decks)if(d.upOn)h=Math.max(h,this.upperStep(d.style,t,s,d)||0);ev.stab=h;
     const B=D.active?BREAKS[D.type]:null;
-    ev.dropInfo=D.active?(D.src==="auto"?`${B.ja} ${D.len}小節（残り${Math.max(0,D.endBar-this.bar)}）`:(S.dropManual?"キック抜き・手動（押下中）":"キック抜き・次の小節で復帰")):"";
+    ev.dropInfo=D.active?(D.src==="auto"?`${D.type==="kick"&&D.recipe?"キック抜き（"+D.recipe.name+"）":B.ja+" "+D.len+"小節"}（残り${Math.max(0,D.endBar-this.bar)}）`:(S.dropManual?"キック抜き・手動（押下中）":"キック抜き・次の小節で復帰")):"";
     ev.style=L.style;ev.decks=this.decks.map(d=>d.style);
     if(this.onStep) this.onStep(s,t,ev,this.bar);
     this.step++;
@@ -579,6 +703,8 @@ const UPMIX={minimal:{dry:1,dly:1,verb:0.12,lvl:1.4},hard:{dry:1,dly:0.35,verb:0
   groove:{dry:1,dly:0.6,verb:0.15,lvl:1.0},tribal:{dry:0.85,dly:0.45,verb:0.7,lvl:0.65},broken:{dry:1,dly:0.8,verb:0.2,lvl:0.75}};
 // per-kick-style master trim in dB (balances overall loudness across styles)
 const STYLE_TRIM_DB={minimal:0,hard:-4.5,groove:2.2,tribal:-0.3,broken:2.0};
+// the 120-band industrial kick is milder (less saturation) than the 140 hard-techno kick -> smaller trim
+const trimDb=(st,band=S.band)=>band==="b120"&&st==="hard"?-2.5:STYLE_TRIM_DB[st];
 const VOWELS=[[800,1150,2900],[450,800,2830],[400,1600,2700],[300,2000,2900],[350,600,2700]];
 
 Object.assign(Patterns.prototype,{
@@ -636,10 +762,18 @@ Object.assign(Engine.prototype,{
     this.padBus=c.createGain();this.padBus.gain.value=1;this.padBus.connect(this.bus.stab);
     {const pv=c.createGain();pv.gain.value=0.7;this.padBus.connect(pv).connect(this.upVerb);}
     this.upDistOut=c.createGain();this.upDistOut.gain.value=0.25;this.upDist.connect(this.upDistOut).connect(this.upG.hard);
-    this.trimEnv=new Env(this.trim.gain,Math.pow(10,STYLE_TRIM_DB[S.style]/20));
+    this.trimEnv=new Env(this.trim.gain,Math.pow(10,trimDb(S.style)/20));
   },
   upCut(){const l=this.lfo();return {l,k:Math.sqrt(this.cutHz()/490)*(0.55+0.9*l)};},
-  upperStep(st,t,s,deck){const P=deck.pat,U=P.U,r=this.rand,v=this.effVar(),root=57+keyOff(),out=this.upG[st],s16=this.s16;
+  // 上モノ dispatcher: section (off / sparse / main / intense) × patch variant (classic palette or motif voice)
+  upperStep(st,t,s,deck){const A=deck.arr,r=this.rand;
+    if(!A.init)return this.upperClassic(st,t,s,deck);
+    if(A.section==="off")return 0;
+    const pv=PATCHES[st][A.variant]||PATCHES[st][0];
+    if(pv.n==="classic"){if(A.section==="sparse"&&s!==0&&r()<0.5)return 0;return this.upperClassic(st,t,s,deck);}
+    if(r()>Math.min(1,0.55+1.2*this.cond.p.density))return 0;
+    return this.playMotif(st,t,s,deck,pv);},
+  upperClassic(st,t,s,deck){const P=deck.pat,U=P.U,r=this.rand,v=this.effVar(),root=57+keyOff(),out=this.upG[st],s16=this.s16;
     if(s!==0 && r()>Math.min(1,0.45+1.2*this.cond.p.density)) return 0;  // density thins the 上モノ
     if(st==="minimal"){const set=this.bar%2===0?P.stab:P.stabAlt;
       if(set.has(s)&&r()>0.08*v){this.stab(t,out);return 1;}return 0;}
@@ -686,14 +820,14 @@ Object.assign(Engine.prototype,{
     lp.connect(g).connect(this.upDist);const os=[];
     for(const iv of b2?[0,1,7]:[0,7,12]) for(const d of [-14,14]){const o=c.createOscillator();o.type="sawtooth";o.frequency.value=mtof(root-12+iv);o.detune.value=d;o.connect(lp);o.start(t);o.stop(t+0.6);os.push(o);this.free(o);}
     os[0].addEventListener("ended",()=>{lp.disconnect();g.disconnect();});},
-  acid(t,midi,acc,slide){const c=this.ctx,{k}=this.upCut(),o=c.createOscillator(),lp=c.createBiquadFilter(),g=c.createGain(),len=this.s16*0.92;
+  acid(t,midi,acc,slide,dest=this.upDist){const c=this.ctx,{k}=this.upCut(),o=c.createOscillator(),lp=c.createBiquadFilter(),g=c.createGain(),len=this.s16*0.92;
     o.type="sawtooth";const f=mtof(midi);
     if(slide&&this.lastAcid){o.frequency.setValueAtTime(this.lastAcid,t);o.frequency.setTargetAtTime(f,t,0.025);}else o.frequency.setValueAtTime(f,t);
     this.lastAcid=f;
     lp.type="lowpass";lp.Q.value=acc?20:14;const base=Math.min(3000,260*k);
     lp.frequency.setValueAtTime(Math.min(9000,base*(acc?9:5)),t);lp.frequency.setTargetAtTime(base,t,acc?0.07:0.045);
     const pk=acc?0.11:0.075;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(pk,t+0.003);g.gain.setValueAtTime(pk,t+len-0.012);g.gain.linearRampToValueAtTime(0,t+len);
-    o.connect(lp).connect(g).connect(this.upDist);o.start(t);o.stop(t+len+0.02);this.free(o,lp,g);},
+    o.connect(lp).connect(g).connect(dest);o.start(t);o.stop(t+len+0.02);this.free(o,lp,g);},
   fmHit(t,midi,dest){const c=this.ctx,f=mtof(midi),car=c.createOscillator(),mod=c.createOscillator(),mi=c.createGain(),g=c.createGain(),hp=c.createBiquadFilter();
     mod.frequency.value=f*3.73;mi.gain.setValueAtTime(f*6,t);mi.gain.setTargetAtTime(0,t,0.03);car.frequency.value=f;
     mod.connect(mi).connect(car.frequency);hp.type="highpass";hp.frequency.value=900;
@@ -705,10 +839,10 @@ Object.assign(Engine.prototype,{
     lp.connect(g).connect(this.upG.groove);const os=[];
     for(const iv of [0,3,7,10]){const o=c.createOscillator();o.setPeriodicWave(this.organWave);o.frequency.value=mtof(root+iv);o.detune.value=(this.rand()-0.5)*6;o.connect(lp);o.start(t);o.stop(t+len+0.2);os.push(o);this.free(o);}
     os[0].addEventListener("ended",()=>{lp.disconnect();g.disconnect();});},
-  vox(t,midi){const c=this.ctx,o=c.createOscillator(),g=c.createGain(),f=mtof(midi),V=VOWELS[Math.floor(this.rand()*VOWELS.length)],len=0.13;
+  vox(t,midi,dest=this.upG.groove,len=0.13){const c=this.ctx,o=c.createOscillator(),g=c.createGain(),f=mtof(midi),V=VOWELS[Math.floor(this.rand()*VOWELS.length)];
     o.type="sawtooth";o.frequency.setValueAtTime(f*1.03,t);o.frequency.setTargetAtTime(f,t,0.02);
     g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.5,t+0.006);g.gain.setValueAtTime(0.45,t+len);g.gain.setTargetAtTime(0,t+len,0.02);
-    g.connect(this.upG.groove);const fs=[];
+    g.connect(dest);const fs=[];
     V.forEach((F,i)=>{const bp=c.createBiquadFilter(),fg=c.createGain();bp.type="bandpass";bp.frequency.value=F;bp.Q.value=9;fg.gain.value=[1,0.55,0.3][i];o.connect(bp).connect(fg).connect(g);fs.push(bp,fg);});
     o.start(t);o.stop(t+len+0.2);this.free(o,g,...fs);},
   marimba(t,midi,vel,pan,kal){const c=this.ctx,f=mtof(midi),car=c.createOscillator(),mod=c.createOscillator(),mi=c.createGain(),g=c.createGain(),p=c.createStereoPanner();
@@ -734,6 +868,107 @@ Object.assign(Engine.prototype,{
     o.connect(g).connect(this.upG.broken);o.start(t);o.stop(t+0.45);this.free(o,g);}
 });
 
+
+// ---------- 上モノ arranger: patch variants × motif development × phrase sections ----------
+const UP_SCALE={minimal:[0,3,5,7,10],hard:[0,1,3,5,7,8,10],groove:[0,2,3,5,7,9,10],tribal:[0,3,5,7,10],broken:[0,3,5,7,10]};
+const CELLS=[[3],[3,11],[0,3,6],[2,7,10],[0,3,6,10,13],[3,6,11,14],[0,6,12],[2,5,7,10,13,15],[1,4,9,12],[0,3,8,11,14],[7,15],[0,10],[2,6,10,14],[0,3,7,10]];
+const PATCHES={
+  minimal:[{n:"classic",ja:"ダブ・スタブ"},
+    {n:"dubchord",ja:"ダブ・コード（m9）",osc:[["sawtooth",-8,.5],["sawtooth",8,.5]],chord:[0,3,7,10,14],f:{type:"lowpass",cut:900,q:2,env:3,dec:.12},a:{a:.003,d:.25,s:0,r:.08},lvl:.075,gate:.9},
+    {n:"bleep",ja:"サイン・ブリープ",osc:[["sine",0,1]],chord:[0],oct:12,a:{a:.002,d:.09,s:0,r:.03},lvl:.15,gate:.5},
+    {n:"glass",ja:"グラス・ベル（FM）",fm:{ratio:3.5,index:2.2,dec:.25},osc:[["sine",0,1]],chord:[0],oct:12,a:{a:.002,d:.6,s:0,r:.3},lvl:.1,gate:1},
+    {n:"hypno",ja:"ヒプノ・シーケンス",osc:[["sawtooth",0,.6],["square",5,.4]],chord:[0],oct:0,f:{type:"lowpass",cut:500,q:9,env:5,dec:.09},a:{a:.002,d:.18,s:.2,r:.04},lvl:.075,gate:.6}],
+  hard:[{n:"classic",ja:"ディストーション・スタブ＋アシッド"},
+    {n:"acid",ja:"アシッド・ライン",special:"acid"},
+    {n:"siren",ja:"サイレン・リード",osc:[["square",-12,.5],["square",12,.5]],chord:[0],oct:12,f:{type:"bandpass",cut:1800,q:3,env:1.5,dec:.2},a:{a:.01,d:.3,s:.5,r:.1},bend:{from:-7,time:.12},lvl:.09,gate:1.6,dist:true},
+    {n:"hoover",ja:"フーバー",osc:[["sawtooth",-25,.4],["sawtooth",25,.4],["sawtooth",0,.3]],chord:[0,7,12],oct:-12,f:{type:"lowpass",cut:1400,q:2,env:2,dec:.25},a:{a:.02,d:.4,s:.4,r:.15},bend:{from:5,time:.15},lvl:.08,gate:2,dist:true},
+    {n:"metal",ja:"メタル・パーカッション（FM）",fm:{ratio:5.33,index:6,dec:.06},osc:[["sine",0,1]],chord:[0],oct:24,f:{type:"highpass",cut:900,q:.7,env:1,dec:.05},a:{a:.001,d:.12,s:0,r:.05},lvl:.07,gate:.4}],
+  groove:[{n:"classic",ja:"オルガン＋ボイス"},
+    {n:"clav",ja:"クラビ",osc:[["square",0,.6],["sawtooth",3,.3]],chord:[0,7],oct:0,f:{type:"bandpass",cut:1500,q:2.5,env:2.5,dec:.04},a:{a:.001,d:.09,s:0,r:.02},lvl:.11,gate:.35},
+    {n:"brass",ja:"ブラス・スタブ",osc:[["sawtooth",-6,.5],["sawtooth",6,.5]],chord:[0,3,7],oct:0,f:{type:"lowpass",cut:700,q:1.5,env:4,dec:.08},a:{a:.012,d:.15,s:.3,r:.06},lvl:.065,gate:.7},
+    {n:"piano",ja:"ハウス・ピアノ",osc:[["triangle",0,.7],["sine",0,.4]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:3000,q:.7,env:1.5,dec:.2},a:{a:.002,d:.35,s:0,r:.1},lvl:.08,gate:.8},
+    {n:"voxchop",ja:"ボイス・チョップ",special:"vox"}],
+  tribal:[{n:"classic",ja:"マリンバ＋フルート"},
+    {n:"kalimba",ja:"カリンバ",special:"kalimba"},
+    {n:"logdrum",ja:"ログドラム",osc:[["sine",0,1]],chord:[0],oct:-12,bend:{from:7,time:.03},a:{a:.001,d:.22,s:0,r:.06},lvl:.2,gate:.6},
+    {n:"chant",ja:"チャント",special:"chant"},
+    {n:"flute",ja:"バンブー・フルート",special:"flute"}],
+  broken:[{n:"classic",ja:"パルス・アルペジオ"},
+    {n:"zap",ja:"エレクトロ・ザップ",osc:[["sine",0,1]],chord:[0],oct:12,bend:{from:24,time:.04},a:{a:.001,d:.1,s:0,r:.03},lvl:.13,gate:.4},
+    {n:"chords",ja:"スクエア・コード",osc:[["square",-5,.5],["square",5,.5]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1200,q:3,env:2.5,dec:.06},a:{a:.002,d:.12,s:0,r:.04},lvl:.06,gate:.5},
+    {n:"acid",ja:"アシッド",special:"acid"},
+    {n:"bleeps",ja:"ブリープ",special:"bleep"}]};
+const SECTION_JA={off:"お休み",sparse:"まばら",main:"メイン",intense:"強め"};
+const MOTIF_OPS=["移調","ずらし","音を足す","音を抜く","オクターブ","アクセント移動","ゲート／フィルター"];
+
+Object.assign(Engine.prototype,{
+  // per phrase: patch variant (often kept so 16 bars stay related), section every 8 bars, motif development every 4 bars
+  arrangeUpper(d){const A=d.arr,r=this.rand,P=PATCHES[d.style],en=this.cond.p.energy,bar=this.bar;
+    if(!A.init){A.init=true;A.variant=d.id===0?0:Math.floor(r()*P.length);A.motif=this.newMotif(d);A.section=d.id===0?"sparse":"main";A.lastSec=A.section;return;}
+    if(bar%16===0){
+      if(r()<0.6&&P.length>1){let v;do{v=Math.floor(r()*P.length);}while(v===A.variant);A.variant=v;if(r()<0.7)A.motif=this.newMotif(d);}
+      else if(r()<0.3)A.motif=this.newMotif(d);
+      A.layer2=r()<0.4?["pad","noise","fx"][Math.floor(r()*3)]:null;
+      if(A.layer2&&d.upOn)this.upperLayer2(d,A.layer2,this.lastT||0);}
+    if(bar%8===0){const w={off:A.lastSec==="off"?0:(.08+(en<.45?.08:0)),sparse:.28,main:.42,intense:.06+Math.max(0,en-.55)*.7};
+      let x=r()*Object.values(w).reduce((a,b)=>a+b,0);for(const [k,v] of Object.entries(w)){x-=v;if(x<=0){A.section=k;break;}}A.lastSec=A.section;}
+    else if(bar%4===0)this.developMotif(A.motif);},
+  newMotif(d){const r=this.rand,sc=UP_SCALE[d.style],cell=CELLS[Math.floor(r()*CELLS.length)];
+    const notes=cell.map((s,i)=>({s,deg:i===0?0:Math.floor(r()*sc.length),oct:r()<0.12?1:0,vel:i===0?1:0.7+0.3*r(),acc:r()<0.25}));
+    return {notes,resp:r()<0.55?[2,-1,1,3][Math.floor(r()*4)]:0,gate:1,fenv:1,tr:0,id:++this.motifSeq,ops:[]};},
+  developMotif(M){if(!M)return;const r=this.rand,op=Math.floor(r()*7),N=M.notes;
+    switch(op){
+      case 0:M.tr=Math.max(-3,Math.min(4,M.tr+[1,-1,2,-2][Math.floor(r()*4)]));break;                 // transposition (scale steps)
+      case 1:{const sh=[1,-1,2,-2][Math.floor(r()*4)];for(const n of N)n.s=(n.s+sh+16)%16;break;}    // rhythmic displacement
+      case 2:if(N.length<7){const used=new Set(N.map(n=>n.s));const fr=[...Array(16).keys()].filter(s=>!used.has(s));
+        N.push({s:fr[Math.floor(r()*fr.length)],deg:Math.floor(r()*5),oct:0,vel:0.7,acc:false});}break;     // note add
+      case 3:if(N.length>2)N.splice(1+Math.floor(r()*(N.length-1)),1);break;                          // note drop
+      case 4:{const n=N[Math.floor(r()*N.length)];n.oct=n.oct?0:1;break;}                             // octave jump
+      case 5:{for(const n of N)n.acc=false;N[Math.floor(r()*N.length)].acc=true;break;}                // accent move
+      case 6:M.gate=Math.max(0.4,Math.min(2,M.gate*(r()<0.5?0.6:1.6)));M.fenv=Math.max(0.4,Math.min(2.5,M.fenv*(r()<0.5?0.6:1.6)));break;}
+    M.ops.push(op);},
+  upperLayer2(d,kind,t){const c=this.ctx,bd=16*this.s16,root=57+keyOff(),out=this.upG[d.style];
+    if(kind==="pad"){for(const [m,lvl] of [[root-12,0.03],[root-5,0.022],[root+3,0.018]])
+        this.drone(t,8*bd,{midi:m,type:"triangle",det:9,cut:1100,q:0.7,lvl,att:Math.min(3,2*bd),rel:2,lfo:0.06,depth:350},out);}
+    else if(kind==="noise")this.noiseWash(t,8*bd,0.03,out);
+    else if(kind==="fx")this.revCym(t+15*bd+8*this.s16,t+16*bd,out,0.05);},
+  noiseWash(t,dur,lvl,dest){const c=this.ctx,n=c.createBufferSource(),bp=c.createBiquadFilter(),g=c.createGain(),lfo=c.createOscillator(),ld=c.createGain();
+    n.buffer=this.noise;n.loop=true;bp.type="bandpass";bp.frequency.value=1400;bp.Q.value=0.8;lfo.frequency.value=0.08;ld.gain.value=900;lfo.connect(ld).connect(bp.frequency);
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(lvl,t+dur*0.4);g.gain.linearRampToValueAtTime(0,t+dur);
+    n.connect(bp).connect(g).connect(dest);n.start(t,this.rand());lfo.start(t);n.stop(t+dur+0.05);lfo.stop(t+dur+0.05);this.free(n,bp,g);this.free(lfo,ld);},
+  // generic patch voice
+  synth(t,midi,vel,dur,P,dest){const c=this.ctx,{k}=this.upCut(),g=c.createGain(),nodes=[g];let filt=null;
+    if(P.f){filt=c.createBiquadFilter();filt.type=P.f.type;filt.Q.value=P.f.q;const base=Math.min(12000,P.f.cut*k);
+      filt.frequency.setValueAtTime(Math.min(16000,base*Math.max(1,P.f.env*(P.fenv||1))),t);filt.frequency.setTargetAtTime(base,t,P.f.dec);filt.connect(g);nodes.push(filt);}
+    const A=P.a,pk=P.lvl*vel,end=t+Math.max(A.a+0.01,dur);
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(pk,t+A.a);g.gain.setTargetAtTime(pk*A.s,t+A.a,A.d/3);g.gain.setTargetAtTime(0,end,A.r/3);
+    g.connect(P.dist?this.upDist:dest);
+    const stopT=end+A.r*3+0.05,os=[];
+    for(const iv of P.chord)for(const [type,det,amt] of P.osc){const o=c.createOscillator(),og=c.createGain(),f=mtof(midi+iv+(P.oct||0));o.type=type;
+      if(P.bend){o.frequency.setValueAtTime(f*Math.pow(2,P.bend.from/12),t);o.frequency.exponentialRampToValueAtTime(f,t+P.bend.time);}else o.frequency.value=f;
+      o.detune.value=det;og.gain.value=amt/Math.sqrt(P.chord.length);
+      if(P.fm){const m=c.createOscillator(),mi=c.createGain();m.frequency.value=f*P.fm.ratio;mi.gain.setValueAtTime(f*P.fm.index,t);mi.gain.setTargetAtTime(0,t,P.fm.dec);m.connect(mi).connect(o.frequency);m.start(t);m.stop(stopT);this.free(m,mi);}
+      o.connect(og).connect(filt||g);o.start(t);o.stop(stopT);os.push(o);this.free(o,og);}
+    os[0].addEventListener("ended",()=>{for(const n of nodes)n.disconnect();});},
+  playMotif(st,t,s,deck,pv){const A=deck.arr,M=A.motif,r=this.rand,sc=UP_SCALE[st],root=57+keyOff(),out=this.upG[st],s16=this.s16;
+    if(!M)return 0;const barB=this.bar%2===1;let h=0;
+    for(let i=0;i<M.notes.length;i++){const n=M.notes[i];if(n.s!==s)continue;
+      if(A.section==="sparse"&&(r()<0.45||(barB&&i>0)))continue;
+      let deg=n.deg+M.tr+(barB?M.resp:0);if(barB&&M.resp&&i===M.notes.length-1)deg+=1;
+      const L=sc.length,oc=Math.floor(deg/L),midi=root+sc[((deg%L)+L)%L]+12*(oc+n.oct),vel=n.vel*(n.acc?1.25:1),dur=s16*(pv.gate||1)*M.gate*1.6;
+      switch(pv.special){
+        case "acid":this.acid(t,midi-12,n.acc,r()<0.25,st==="hard"?this.upDist:out);break;
+        case "vox":this.vox(t,midi+12,this.upG.groove);break;
+        case "chant":this.vox(t,midi,this.upG.tribal,s16*2.5);break;
+        case "kalimba":this.marimba(t,midi+12,vel,(i%2?0.35:-0.35),true);break;
+        case "flute":if(i===0)this.flute(t,midi+12,s16*6);else this.marimba(t,midi+12,0.5*vel,0.2,true);break;
+        case "bleep":this.bleep(t,midi+24);break;
+        default:this.synth(t,midi,vel,dur,{...pv,fenv:M.fenv},out);
+          if(A.section==="intense"&&n.acc)this.synth(t+s16/2,midi+12,0.5*vel,dur*0.6,{...pv,fenv:M.fenv},out);}
+      if(this.debug)this.upLog.push([this.bar,s,st,pv.n,midi,deck.id,M.id]);h=Math.max(h,n.acc?1:0.75);}
+    return h;}
+});
+
 // ---------- Conductor: intents -> gradual, phrase-aligned musical changes ----------
 const PROFILE={
   minimal:{energy:.40,dark:.45,density:.45,swing:.10,tension:.20,space:.55},
@@ -742,8 +977,6 @@ const PROFILE={
   tribal: {energy:.60,dark:.45,density:.60,swing:.30,tension:.30,space:.70},
   broken: {energy:.60,dark:.50,density:.55,swing:.20,tension:.30,space:.50}};
 const PARAM_JA={energy:"エネルギー",dark:"暗さ",density:"密度",swing:"グルーヴ",tension:"緊張感",space:"空間"};
-const JOURNEY={minimal:{tribal:.35,groove:.35,broken:.2,hard:.1},tribal:{groove:.35,minimal:.25,hard:.2,broken:.2},
-  groove:{hard:.4,tribal:.25,minimal:.2,broken:.15},hard:{groove:.35,broken:.25,minimal:.25,tribal:.15},broken:{minimal:.35,groove:.3,tribal:.2,hard:.15}};
 const clamp01=x=>Math.max(0,Math.min(1,x));
 // free-text names for break types (checked in order; first match wins)
 const BREAK_WORDS=[["tapestop",/テープ|ピッチダウン|ストップ/],["stutter",/スタッター|ビートリピート|リピート|連打/],["echo",/エコー|ダブアウト|残響だけ/],
@@ -755,46 +988,64 @@ const SUGGEST=["もっとハードに","少し暗く","一気に盛り上げて"
 
 class Conductor{
   constructor(e){this.e=e;this.p={...PROFILE[e.low.style]};this.glide={};this.events=[];this.mix=null;this.queue=[];
-    this.auto=false;this.hold=false;this.phraseCount=0;this.autoWait=2;this.autoWaitRange=[2,4];this.tempoBias=0;
-    this.r=mulberry32(e.seed^0xc0ffee);this.lastBreak=null;
-    this.log=[];this.logVer=0;this.curSrc=null;this.groups={};this.gseq=0;this.curGid=null;}
+    this.auto=false;this.hold=false;this.band=S.band;this.pendingBand=null;this.tempoBias=0;this.tempoRate=0.5;this.tempoGoal=null;
+    this.r=mulberry32(e.seed^0xc0ffee);this.lastBreak=null;this.lastKick=null;
+    this.log=[];this.logVer=0;this.curSrc=null;this.groups={};this.gseq=0;this.curGid=null;
+    this.set=null;this.buildSet("warm",e.low.style);}
   // ---- 消化した予定 log: newest first, fixed length ----
   logItem(text,src,status="done",bar=this.bar,t){const e=this.e,T=(t??(e.lastT!=null?e.lastT:e.nextTime))-(e.t0??0);
     this.log.unshift({bar,t:Math.max(0,T),text,src:src||"自動",status});if(this.log.length>LOG_MAX)this.log.length=LOG_MAX;this.logVer++;}
   note(msg){this.logItem(msg,this.curSrc);}
-  // parameter changes are grouped per request; the group is logged once all its glides have arrived
   beginGroup(label,src){this.curGid=++this.gseq;this.groups[this.curGid]={label,src:src||this.curSrc,pending:new Set(),sup:false};return this.curGid;}
   endGroup(){const g=this.groups[this.curGid];if(g&&!g.pending.size)delete this.groups[this.curGid];this.curGid=null;}
   checkGroup(gid,bar,t){const g=this.groups[gid];if(!g||g.pending.size)return;delete this.groups[gid];
     this.logItem(`${g.label||"雰囲気の変化"}：到達${g.sup?"（一部は後の指示で上書き）":""}`,g.src,"done",bar,t);}
-  // choose a break that fits the current energy / style; never the same type twice in a row
-  pickBreak(o={}){const r=this.r,en=this.target("energy"),aff=BREAK_AFFINITY[this.e.low.style]||{};
-    let c=BREAK_ORDER.filter(k=>{const B=BREAKS[k];return en>=B.energy[0]-0.05&&en<=B.energy[1]+0.05;});
-    if(o.forMix)c=c.filter(k=>["kick","filter","hpbuild","tapestop","stutter","echo","silence","breakdown"].includes(k)&&(k!=="breakdown"||o.long)&&(BREAKS[k].len[0]<=(o.maxLen||2)||BREAKS[k].len[1]===1));
-    if(o.short)c=c.filter(k=>BREAKS[k].len[0]<=2&&k!=="breakdown");
-    if(o.long)c=c.filter(k=>BREAKS[k].len[1]>=8);
-    if(o.big)c=c.filter(k=>BREAKS[k].tension>=0.6);
-    if(c.length>1)c=c.filter(k=>k!==this.lastBreak);
-    if(!c.length)c=["kick"];
-    const w=c.map(k=>(aff[k]||1)*(0.6+BREAKS[k].tension*(0.4+this.p.tension)));let x=r()*w.reduce((a,b)=>a+b,0);
-    for(let i=0;i<c.length;i++){x-=w[i];if(x<=0)return c[i];}return c[c.length-1];}
-  breakLen(type,o={}){const B=BREAKS[type];if(o.len)return Math.max(B.len[0],Math.min(B.len[1],o.len));
-    if(o.short)return B.len[0];if(o.long)return B.len[1]>=8?Math.max(8,Math.min(B.len[1],type==="breakdown"?16:8)):B.len[1];return B.def;}
   get bar(){return this.e.bar;}
-  ja(st){return STYLES[st].ja;}
+  ja(st,band=this.band){return styleJa(st,band);}
   target(k){return this.glide[k]?this.glide[k].to:this.p[k];}
-  finalStyle(){if(this.queue.length)return this.queue[this.queue.length-1].style;if(this.mix)return this.mix.to;return this.e.low.style;}
+  finalStyle(){const q=this.queue.filter(x=>x.style);if(q.length)return q[q.length-1].style;if(this.mix)return this.mix.to;return this.e.low.style;}
   nextBoundary(bar,grid,gap){return Math.ceil((bar+gap)/grid)*grid;}
-  // tempo bias: glide the current style's tempo; if a mix has already started, just retarget its pitch-ride
-  retempo(bar){const e=this.e,M=this.mix;
-    if(M&&M.state!=="planned"&&e.bpmGlide){e.bpmGlide.to=STYLES[M.to].bpm+this.tempoBias;return;}
-    if(e.bpmGlide&&e.bpmGlide.label)this.logItem(e.bpmGlide.label,e.bpmGlide.src,"cancel");
-    const to=STYLES[e.low.style].bpm+this.tempoBias;e.bpmGlide={from:e.bpm,to,b0:bar+1,bars:8,label:`テンポ ${to.toFixed(0)} BPM`,src:this.curSrc};}
   setParam(k,val,bars,startBar){const old=this.glide[k];
     if(old&&old.gid&&old.gid!==this.curGid){const og=this.groups[old.gid];if(og){og.pending.delete(k);og.sup=true;this.checkGroup(old.gid,this.bar);}}
     this.glide[k]={from:null,to:clamp01(val),b0:startBar,bars:Math.max(1,bars),gid:this.curGid};
     const g=this.groups[this.curGid];if(g)g.pending.add(k);}
   addEvent(ev){if(ev.src===undefined)ev.src=this.curSrc||"自動";this.events.push(ev);this.events.sort((a,b)=>a.bar-b.bar);}
+
+  // ---- tempo: band arc (おまかせ) or band centre, pulled 40% toward the style's preferred tempo, drifting <= tempoRate BPM / phrase ----
+  tempoTarget(){const B=BANDS[this.band],cur=this.set&&this.set.list[this.set.idx];
+    const base=this.auto&&cur?B.arc[cur.phase]:B.center,st=this.mix&&this.mix.state!=="planned"?this.mix.to:this.e.low.style;
+    return Math.max(B.min,Math.min(B.max,0.6*base+0.4*STYLE_BAND[this.band][st].bpm+this.tempoBias));}
+  // ---- setlist: warm-up -> build -> peak -> release, styles chosen from the band's pools ----
+  buildSet(phase0="warm",first=null){const r=this.r,B=BANDS[this.band],list=[];let prev=first;
+    for(const ph of PHASES.slice(PHASES.indexOf(phase0))){const n=ph==="release"?1:(r()<0.55?2:1);
+      for(let i=0;i<n;i++){const pool=B.pool[ph].filter(s=>s!==prev),st=(!list.length&&first)?first:pool[Math.floor(r()*pool.length)];
+        list.push({style:st,phase:ph,phrases:(ph==="peak"?3:2)+(r()<0.35?1:0)});prev=st;}}
+    this.set={list,idx:0,phr:0,n:(this.set?this.set.n:0)+1};}
+  // ---- kick-drop recipe: length × what is removed × fill × riser × impact (band/energy dependent, never the same twice in a row) ----
+  kickRecipe(o={}){const r=this.r,hi=this.band==="b140",last=this.lastKick;
+    const wp=w=>{let x=r()*Object.values(w).reduce((a,b)=>a+b,0);for(const [k,v] of Object.entries(w)){x-=v;if(x<=0)return k;}return Object.keys(w)[0];};
+    let R,tries=0;
+    do{let len=o.len||+wp(o.short?{"0":3,"1":2}:o.long?{"4":2,"8":1}:hi?{"0":1,"1":2,"2":3,"4":2,"8":.6}:{"0":2,"1":3,"2":2.5,"4":1,"8":.3});
+      const micro=len===0?(r()<0.5?2:4):0;if(micro)len=1;
+      const remove=micro?(r()<0.6?"kick":"kickbass"):wp(o.forMix?{kick:2,kickbass:2}:hi?{kick:3,kickbass:3,beat1:1,offbeat:1,thin:1,lowcut:1}:{kick:2,lowcut:3,thin:2,beat1:2,offbeat:1,kickbass:1});
+      const fill=micro?wp({gap:2,echo:1.5,none:2,snare16:micro===4?1:0}):wp(hi?{snare16:2,snareBuild:len>=2?2:.5,kickroll16:2,kickroll8:1.5,triplet:1,tom:1,revcym:2,gap:1,none:.5}:{snare16:1,echo:3,gap:2,revcym:1,tom:1,none:2,triplet:1,kickroll8:.5});
+      const riser=micro?"none":(len<2?(r()<0.3?"noise":"none"):wp(hi?{noise:2,pitch:2,none:1}:{noise:1,pitch:1,none:2}));
+      const impact=wp(hi?{crash:2,boom:2,crashboom:2,none:.5}:{crash:2,none:2,boom:1});
+      const pos=!o.forMix&&!o.len&&!micro&&r()<0.3?"pickup":"end";
+      R={len,micro,remove,fill,riser,impact,pos};R.key=[len,micro,remove,fill,riser,impact].join("|");
+    }while(++tries<10&&last&&(R.key===last.key||(R.fill===last.fill&&r()<0.75)||(R.remove===last.remove&&r()<0.5)));
+    R.name=kdName(R);this.lastKick=R;return R;}
+  pickBreak(o={}){const r=this.r,en=this.target("energy"),aff=BREAK_AFFINITY[this.e.low.style]||{};
+    let c=BREAK_ORDER.filter(k=>{const B=BREAKS[k];return en>=B.energy[0]-0.05&&en<=B.energy[1]+0.05;});
+    if(o.forMix)c=c.filter(k=>["kick","filter","hpbuild","tapestop","stutter","echo","silence","breakdown"].includes(k)&&(k!=="breakdown"||o.long)&&(BREAKS[k].len[0]<=(o.maxLen||2)||BREAKS[k].len[1]===1));
+    if(o.short)c=c.filter(k=>BREAKS[k].len[0]<=2&&k!=="breakdown");
+    if(o.long)c=c.filter(k=>BREAKS[k].len[1]>=8);
+    if(c.length>1)c=c.filter(k=>k!==this.lastBreak);
+    if(!c.length)c=["kick"];
+    const w=c.map(k=>(aff[k]||1)*(0.6+BREAKS[k].tension*(0.4+this.p.tension))*(k==="kick"?1.25:1));let x=r()*w.reduce((a,b)=>a+b,0);
+    for(let i=0;i<c.length;i++){x-=w[i];if(x<=0)return c[i];}return c[c.length-1];}
+  breakLen(type,o={}){const B=BREAKS[type];if(o.len)return Math.max(B.len[0],Math.min(B.len[1],o.len));
+    if(o.short)return B.len[0];if(o.long)return B.len[1]>=8?Math.max(8,Math.min(B.len[1],type==="breakdown"?16:8)):B.len[1];return B.def;}
 
   onBar(bar,t){
     for(const k of Object.keys(this.glide)){const g=this.glide[k];if(bar<g.b0)continue;if(g.from===null)g.from=this.p[k];
@@ -802,38 +1053,65 @@ class Conductor{
       if(f>=1){delete this.glide[k];const G=this.groups[g.gid];if(G){G.pending.delete(k);this.checkGroup(g.gid,bar,t);}}}
     const due=this.events.filter(x=>x.bar<=bar);this.events=this.events.filter(x=>x.bar>bar);
     for(const ev of due)this.run(ev,t,bar);
-    if(!this.mix&&this.queue.length){const q=this.queue.shift();this.curSrc=q.src;this.planMix(q.style,bar,q.opts);this.curSrc=null;}
+    if(!this.mix&&!this.pendingBand&&this.queue.length){const q=this.queue.shift();this.curSrc=q.src;const ls=[];
+      if(q.band)this.planBand(q.band,bar,ls);else this.planMix(q.style,bar,q.opts);this.curSrc=null;}
     if(this.auto&&!this.hold&&bar>0&&bar%16===0)this.autopilot(bar);
   }
 
-  // ---- DJ mix plan: phrase-aligned, two decks overlap, ONE kick/bass owner swapped on a downbeat ----
+  // ---- DJ mix within the band: tempo stays (slow drift only), kick timbre morphs, big timbre jumps hide in a kick-less break ----
   planMix(style,bar,o={}){
-    const L=o.len||16,m=this.nextBoundary(bar,o.grid||16,o.gap??2),sw=m+L/2,dl=o.dropLen??2,from=this.e.low.style;
-    this.mix={from,to:style,m,L,swap:sw,end:m+L,state:"planned",dropLen:dl};
+    const L=o.len||16,m=this.nextBoundary(bar,o.grid||16,o.gap??2),sw=m+L/2,from=this.e.low.style;let dl=o.dropLen??2,bt=o.breakType;
+    const dist=kickDist(kickParams(from,this.band),kickParams(style,this.band)),big=dist>0.9;
+    if(big&&!bt){dl=Math.max(dl,2);bt="kick";}
+    this.mix={from,to:style,m,L,swap:sw,end:m+L,state:"planned",dropLen:dl,big};
     const A=this.ja(from),B=this.ja(style);
-    this.addEvent({bar:m,type:"mixStart",label:`ミックス開始：${B}のハット／パーカッションと上モノを徐々に投入、テンポ移行`});
+    this.addEvent({bar:m,type:"mixStart",label:`ミックス開始：${B}のハット／パーカッションと上モノを徐々に投入`});
     this.addEvent({bar:m+L/4,type:"upOut",label:`${A}の上モノをハイパスで抜いていく`});
-    if(dl){const bt=o.breakType||this.pickBreak({forMix:true,maxLen:dl,long:dl>=8}),bl=BREAKS[bt].len[1]===1?1:Math.max(BREAKS[bt].len[0],dl);
+    // morph starts with the mix and finishes a few bars after the swap: rumble layer first, saturation last
+    const kb0=m,kbars=Math.max(6,sw-m+3);
+    this.addEvent({bar:kb0,type:"kickMorph",style,bars:kbars,label:`キックの質感を${B}へ${kbars}小節かけてモーフ（${big?"ランブル層を先に足す":"なめらかに"}）`});
+    if(dl){bt=bt||this.pickBreak({forMix:true,maxLen:dl,long:dl>=8});const bl=BREAKS[bt].len[1]===1?1:Math.max(BREAKS[bt].len[0],dl);
+      let R=null;if(bt==="kick")R=this.kickRecipe({len:bl,forMix:true});
       this.mix.dropLen=bl;this.mix.breakType=bt;this.lastBreak=bt;
-      this.addEvent({bar:sw-bl,type:"drop",len:bl,btype:bt,label:`${BREAKS[bt].ja}（${bl}小節）→ 交換`});}
-    this.addEvent({bar:sw,type:"swap",label:`キック＋ベースを${B}に交換${dl?"（クラッシュ）":""}`});
+      this.addEvent({bar:sw-bl,type:"drop",len:bl,btype:bt,recipe:R,label:`${bt==="kick"?"キック抜き（"+R.name+"）":BREAKS[bt].ja+"（"+bl+"小節）"}→ 交換`});}
+    this.addEvent({bar:sw,type:"swap",label:`キック＋ベースを${B}に交換`});
     this.addEvent({bar:m+L,type:"mixEnd",label:`${A}が完全に抜けてミックス完了`});
     return this.mix;}
   requestStyle(style,o,labels){
     if(style===this.finalStyle()){labels.push(`既に${this.ja(style)}${this.mix?"へ移行中":""}です`);return;}
-    if(this.mix||this.queue.length){this.queue.push({style,opts:o,src:this.curSrc});labels.push(`現在のミックス完了後に${this.ja(style)}へ移行`);return;}
+    if(this.mix||this.queue.length||this.pendingBand){this.queue.push({style,opts:o,src:this.curSrc});labels.push(`現在の移行が終わったら${this.ja(style)}へ`);return;}
     const M=this.planMix(style,this.bar,o);
-    labels.push(`${M.m-this.bar}小節後から${M.L}小節かけて${this.ja(style)}へミックス`);}
+    labels.push(`${M.m-this.bar}小節後から${M.L}小節かけて${this.ja(style)}へミックス（テンポは${BANDS[this.band].ja}のまま）`);}
+  // ---- band change: deliberate DJ move, tempo changes ONLY inside a beatless bridge ----
+  requestBand(band,labels){
+    if(band===(this.pendingBand||this.band)){labels.push(`既に${BANDS[band].ja}セット${this.pendingBand?"へ移行予定":""}です`);return;}
+    if(this.mix||this.pendingBand){this.queue.push({band,src:this.curSrc});labels.push(`現在の移行が終わったら${BANDS[band].ja}セットへ`);return;}
+    this.planBand(band,this.bar,labels);}
+  planBand(band,bar,labels){const e=this.e,r=this.r,up=BANDS[band].center>BANDS[this.band].center,len=up?8:6;
+    const end=this.nextBoundary(bar,16,len+(up?2:3)),st=end-len,to=BANDS[band].start;
+    // drop breaks that would collide with the bridge
+    this.events=this.events.filter(ev=>{const clash=(ev.type==="break"||ev.type==="drop")&&ev.bar+ev.len>st-2&&ev.bar<end;if(clash)this.logItem(ev.label+"（セット移行のため）",ev.src,"cancel");return !clash;});
+    const pool=BANDS[band].pool[up?"build":"warm"],cur=e.low.style,first=pool.includes(cur)&&r()<0.5?cur:pool[Math.floor(r()*pool.length)];
+    let how="";
+    if(!up){const bt=r()<0.5?"echo":"tapestop";how=BREAKS[bt].ja+"で落として";
+      this.addEvent({bar:st-1,type:"break",len:1,btype:bt,noImpact:true,label:`${BREAKS[bt].ja}（セット移行の入口）`});}
+    this.addEvent({bar:st,type:"break",len,btype:"bridge",dir:up?"up":"down",toBpm:to,label:`アンビエント・ブリッジ ${len}小節（ビートレス）→ ${end}小節目で${styleJa(first,band)}が始まる`});
+    this.addEvent({bar:st+1,type:"bandSwitch",band,style:first,len,up,label:`${BANDS[this.band].ja}→${BANDS[band].ja}：ビートレス区間でテンポ ${e.bpm.toFixed(0)}→${to.toFixed(0)} BPM`});
+    this.pendingBand=band;
+    labels.push(`${BANDS[band].ja}セットへ：${st-bar}小節後に${how}アンビエント・ブリッジ（${len}小節、キックなし）の間にテンポを${to.toFixed(0)} BPMへ、${end-bar}小節後に${styleJa(first,band)}で再開`);}
   planBreak(bar,len,labels,grid,type,o={}){
-    type=type||this.pickBreak(o);const B=BREAKS[type];len=len?this.breakLen(type,{len}):this.breakLen(type,o);
+    type=type||this.pickBreak(o);const B=BREAKS[type];let R=null;
+    if(type==="kick"){R=o.recipe||this.kickRecipe({len:len||undefined,short:o.short,long:o.long});len=R.len;if(!grid&&R.pos==="pickup")grid=4;}
+    else len=len?this.breakLen(type,{len}):this.breakLen(type,o);
     grid=grid||(len<=1?4:(len<=8?8:16));grid=Math.max(grid,len>8?16:1);
     let end=this.nextBoundary(bar,grid,len+1);
     const busy=e=>this.events.some(x=>(x.type==="break"||x.type==="drop")&&x.bar<e&&x.bar+x.len+1>e-len)||(this.e.drop.active&&this.e.drop.endBar>=e-len);
     for(let i=0;i<6&&busy(end);i++)end+=grid;
-    const st=end-len;
+    const st=end-len,nm=type==="kick"?`キック抜き（${R.name}）`:`${B.ja} ${len}小節`;
+    if(this.pendingBand){labels.push(`セット移行の準備中のため${nm}は見送ります`);return null;}
     if(this.mix&&st<this.mix.swap&&end>this.mix.swap-(this.mix.dropLen||0)){labels.push(`ミックス中のため${B.ja}は交換ポイントの後に回せません（交換ポイントのブレイクに任せます）`);return null;}
-    this.addEvent({bar:st,type:"break",len,btype:type,label:`${B.ja} ${len}小節 → ${end}小節目で復帰`});this.lastBreak=type;
-    labels.push(`${st-bar}小節後に${B.ja}（${len}小節）：${B.desc}`);return {st,end,type,len};}
+    this.addEvent({bar:st,type:"break",len,btype:type,recipe:R,label:`${nm} → ${end}小節目で復帰`});this.lastBreak=type;
+    labels.push(`${st-bar}小節後に${nm}：${type==="kick"?"組み合わせはその都度変わります":B.desc}`);return {st,end,type,len};}
   planPeak(bar,k,labels){
     const end=this.nextBoundary(bar,16,10),len=end-bar>=14?8:4,st=end-len,build=Math.max(2,end-bar-1);
     this.setParam("energy",0.95,build,bar+1);this.setParam("density",Math.max(this.p.density,0.75),build,bar+1);this.setParam("tension",0.9,Math.max(2,st-bar),bar+1);
@@ -847,42 +1125,62 @@ class Conductor{
         B.topEnv.hold(t);B.topEnv.lin(0.8,t+bd*M.L/4);
         const ue=e.upEnv[M.to],he=e.upHpEnv[M.to];ue.hold(t);ue.lin(UPMIX[M.to].lvl,t+bd*M.L/2);
         he.hold(t);he.set(1600,t);he.exp(20,t+bd*M.L/2);
-        e.bpmGlide={from:e.bpm,to:STYLES[M.to].bpm+this.tempoBias,b0:bar+1,bars:Math.max(6,Math.round(M.L*0.75))}; // pitch-ride across most of the mix
-        if(e.bpmGlide&&e.bpmGlide.label)this.logItem(e.bpmGlide.label+"（ミックスのテンポ移行に統合）",e.bpmGlide.src,"cancel",bar,t);
+        // master trim follows the kick morph (whole mix-in .. 3 bars after the swap) instead of jumping at the swap
+        e.trimEnv.hold(t);e.trimEnv.lin(Math.pow(10,trimDb(M.to,this.band)/20),t+bd*(M.swap-M.m+3));
         this.beginGroup(`${this.ja(M.to)}の雰囲気へ移行`,ev.src);
         for(const k of Object.keys(PROFILE[M.to]))this.setParam(k,this.target(k)+(PROFILE[M.to][k]-this.target(k))*0.7,M.L,bar);
         this.endGroup();break;}
       case "upOut":{if(!M)break;const ue=e.upEnv[M.from],he=e.upHpEnv[M.from];
         he.hold(t);he.exp(2600,t+bd*M.L/2);ue.hold(t);ue.lin(0,t+bd*M.L/2);break;}
-      case "drop":case "break":if(!e.drop.active){e.dropStart(t,"auto",ev.len,ev.btype||"kick");e.drop.meta={src:ev.src};}
+      case "kickMorph":e.startKickMorph(kickParams(ev.style,this.band),ev.bars,bar+1);break;
+      case "drop":case "break":if(!e.drop.active){e.dropStart(t,"auto",ev.len,ev.btype||"kick",{recipe:ev.recipe,dir:ev.dir,noImpact:ev.noImpact,toBpm:ev.toBpm});e.drop.meta={src:ev.src};}
         else this.logItem(`${BREAKS[ev.btype||"kick"].ja}（別のブレイク中のためスキップ）`,ev.src,"cancel",bar,t);return;
       case "swap":{if(!M||!M.deckB)break;e.low=M.deckB;M.state="swapped";
         M.deckA.topEnv.hold(t);M.deckA.topEnv.lin(0,t+bd*M.L/4);M.deckB.topEnv.hold(t);M.deckB.topEnv.lin(1,t+bd*2);
-        e.trimEnv.hold(t);e.trimEnv.lin(Math.pow(10,STYLE_TRIM_DB[M.to]/20),t+bd*2);
         if(!M.dropLen&&S.crash&&this.p.energy>0.45)e.crash(t);break;}
       case "mixEnd":{if(!M)break;const A=M.deckA;e.decks=e.decks.filter(d=>d!==A);e.disposeDeck(A,t);
         e.upHpEnv[M.from].hold(t);e.upHpEnv[M.from].exp(20,t+0.5);
         this.mix=null;break;}
+      case "bandSwitch":{const A=e.low,B=e.makeDeck(ev.style,false);
+        for(const d of e.decks)e.disposeDeck(d,t);e.decks=[B];e.low=B;this.mix=null;
+        B.topEnv.hold(t);B.topEnv.lin(1,t+bd);
+        for(const st of UPSTYLES){const ue=e.upEnv[st];ue.hold(t);ue.lin(st===B.style?UPMIX[st].lvl:0,t+bd);e.upHpEnv[st].hold(t);e.upHpEnv[st].exp(20,t+0.3);}
+        e.trimEnv.hold(t);e.trimEnv.lin(Math.pow(10,trimDb(B.style,ev.band)/20),t+bd);
+        this.band=ev.band;S.band=ev.band;this.tempoBias=0;this.tempoRate=0.5;this.tempoGoal=null;this.pendingBand=null;
+        e.bpmGlide={from:e.bpm,to:BANDS[ev.band].start,b0:bar+1,bars:Math.max(2,ev.len-4)};   // finishes 2 bars before the bridge ends
+        e.kMorph=null;e.kp=kickParams(B.style,ev.band);                                        // fresh kick after the beatless bridge
+        this.buildSet(ev.up?"build":"warm",B.style);
+        this.beginGroup(`${BANDS[ev.band].ja}セットの雰囲気へ`,ev.src);
+        for(const k of Object.keys(PROFILE[B.style]))this.setParam(k,PROFILE[B.style][k]+(k==="energy"?(ev.up?0.05:-0.08):0),ev.len,bar);
+        this.endGroup();break;}
       case "peakHit":this.beginGroup("ピーク後に緊張感を解放",ev.src);this.setParam("tension",0.25,8,bar);this.endGroup();break;
     }
     this.logItem(ev.done||ev.label,ev.src,"done",bar,t);}
 
-  autopilot(bar){if(this.mix||this.queue.length)return;
-    this.curSrc="おまかせ";try{this.autopilotStep(bar);}finally{this.curSrc=null;this.curGid=null;}}
-  autopilotStep(bar){const r=this.r;this.phraseCount++;
-    if(this.phraseCount>=this.autoWait){
-      const W=JOURNEY[this.e.low.style];let x=r()*Object.values(W).reduce((a,b)=>a+b,0),pick="minimal";
-      for(const [k,w] of Object.entries(W)){x-=w;if(x<=0){pick=k;break;}}
-      const L=r()<0.5?16:32,dl=L===32&&r()<0.3?8:(this.p.energy>0.55?2:(r()<0.6?1:0));
-      this.planMix(pick,bar,{len:L,gap:1,dropLen:dl});
-      this.note(`判断：次は${this.ja(pick)}へ（${L}小節ミックスを計画）`);
-      this.phraseCount=0;this.autoWait=this.autoWaitRange[0]+Math.floor(r()*(this.autoWaitRange[1]-this.autoWaitRange[0]+1));
-    }else{
-      const ph=bar/16;this.beginGroup("フレーズごとの雰囲気のゆらぎ");
-      this.setParam("energy",this.p.energy+(Math.sin(ph*0.9)*0.15+(r()-0.5)*0.15),16,bar);
-      this.setParam("dark",this.p.dark+(r()-0.5)*0.2,16,bar);this.setParam("density",this.p.density+(r()-0.5)*0.2,16,bar);this.endGroup();
-      if(r()<0.4){const ls=[];this.planBreak(bar,null,ls,null,null,{});}
-    }}
+  // ---- おまかせ: follow the setlist arc phrase by phrase ----
+  autopilot(bar){this.curSrc="おまかせ";try{this.autopilotStep(bar);}finally{this.curSrc=null;this.curGid=null;}}
+  autopilotStep(bar){const r=this.r,SL=this.set;if(!this.mix&&!this.pendingBand)SL.phr++;   // phrases of an entry are counted after its mix-in
+    if(this.mix&&this.mix.state==="swapped"&&!this.pendingBand&&r()<0.5){const ls=[];this.planBreak(bar,null,ls,null,"kick",{});}  // second half of a long mix
+    if(this.mix||this.pendingBand||this.queue.length)return;   // the mix carries its own atmosphere glide
+    let cur=SL.list[SL.idx];
+    if(SL.phr>=cur.phrases){
+      SL.idx++;SL.phr=0;if(SL.idx>=SL.list.length){this.buildSet("build",cur.style);this.note(`セットリスト：次のアークを組み直し（${this.set.list.map(x=>this.ja(x.style)).join("→")}）`);}
+      const nx=this.set.list[this.set.idx];
+      if(nx.style!==this.e.low.style){
+        const toPeak=nx.phase==="peak"&&cur.phase!=="peak",L=toPeak?32:(r()<0.5?16:32);
+        const o=toPeak?{len:32,gap:1,dropLen:8,breakType:"breakdown"}:{len:L,gap:1,dropLen:this.p.energy>0.55?2:(r()<0.6?1:0)};
+        this.planMix(nx.style,bar,o);
+        this.note(`セットリスト：${PHASE_JA[nx.phase]}へ → ${this.ja(nx.style)}（${L}小節ミックス${toPeak?"＋ブレイクダウン":""}）`);return;}
+      this.note(`セットリスト：${PHASE_JA[nx.phase]}へ（${this.ja(nx.style)}のまま展開）`);cur=nx;}
+    // energy follows the arc of the current setlist entry
+    this.beginGroup(`アーク：${PHASE_JA[cur.phase]}の雰囲気`);
+    this.setParam("energy",PHASE_E[cur.phase]+(r()-0.5)*0.08,16,bar);
+    this.setParam("tension",cur.phase==="build"?0.55:(cur.phase==="peak"?0.45:0.25),16,bar);
+    this.setParam("dark",this.p.dark+(r()-0.5)*0.15,16,bar);this.setParam("density",clamp01(PHASE_E[cur.phase]+0.05+(r()-0.5)*0.15),16,bar);this.endGroup();
+    // phrase-end punctuation: mostly kick-drop recipes (each one different), sometimes another break type
+    const x=r(),ls=[];
+    if(x<0.6)this.planBreak(bar,null,ls,null,"kick",{});
+    else if(x<0.85){const bt=this.pickBreak({});if(bt!=="kick")this.planBreak(bar,null,ls,null,bt,{});else this.planBreak(bar,null,ls,null,"kick",{});}}
 
   // ---- free-text (Japanese) intent parser: rule-based keywords + intensity words ----
   intent(text){this.curSrc=`「${text}」`;this.beginGroup(null);
@@ -903,29 +1201,36 @@ class Conductor{
     const style=st=>{this.requestStyle(st,mixO,labels);hit=true;};
     let t2=tx.replace(/ハードグル[ーｰ]?[ヴブ]/g,"グルーヴ");
     if(/(おまかせ|お任せ|自動|オート).*(やめ|オフ|解除|止め|終わ)|手動に/.test(t2)){this.auto=false;labels.push("おまかせ オフ");hit=true;t2=t2.replace(/おまかせ|お任せ|自動|オート/g,"");}
-    else if(/おまかせ|お任せ|任せ|自動|オート|djして|勝手に/.test(t2)){this.auto=true;this.hold=false;labels.push("おまかせ オン（数フレーズごとに自動でスタイル移行）");hit=true;}
+    else if(/おまかせ|お任せ|任せ|自動|オート|djして|勝手に/.test(t2)){this.auto=true;this.hold=false;labels.push(`おまかせ オン（${BANDS[this.band].ja}のセットリストに沿って進行）`);hit=true;}
     if(/このまま|キープ|維持|ずっと|固定|変えないで/.test(t2)){this.hold=true;this.auto=false;
       for(const [gid,g] of Object.entries(this.groups))if(g.pending.size&&+gid!==this.curGid)this.logItem(`${g.label||"雰囲気の変化"}（途中で固定）`,g.src,"cancel");
       this.groups={};this.glide={};
-      for(const q of this.queue)this.logItem(`${this.ja(q.style)}へのミックス（待機中）`,q.src,"cancel");this.queue=[];
-      const MIXEV=["mixStart","upOut","drop","swap","mixEnd"];let cm=null;
-      if(this.mix&&this.mix.state==="planned"){cm=this.mix;this.mix=null;}           // not started yet -> cancel
+      for(const q of this.queue)this.logItem(q.band?`${BANDS[q.band].ja}セットへの移行（待機中）`:`${this.ja(q.style)}へのミックス（待機中）`,q.src,"cancel");this.queue=[];
+      const MIXEV=["mixStart","upOut","drop","swap","mixEnd","kickMorph"];let cm=null;
+      if(this.mix&&this.mix.state==="planned"){cm=this.mix;this.mix=null;}
       const keep=e=>this.mix&&MIXEV.includes(e.type);
       if(cm)this.logItem(`${this.ja(cm.from)} → ${this.ja(cm.to)} のミックス計画（${cm.L}小節${cm.breakType?"・"+BREAKS[cm.breakType].ja:""}）`,(this.events.find(e=>e.type==="mixStart")||{}).src,"cancel");
-      for(const ev of this.events)if(!keep(ev)&&!(cm&&MIXEV.includes(ev.type)))this.logItem(ev.label,ev.src,"cancel");
+      if(this.pendingBand){const be=this.events.find(e=>e.type==="bandSwitch");this.logItem(`${BANDS[this.pendingBand].ja}セットへの移行`,be&&be.src,"cancel");this.pendingBand=null;}
+      for(const ev of this.events)if(!keep(ev)&&!(cm&&MIXEV.includes(ev.type))&&ev.type!=="bandSwitch"&&!(ev.btype==="bridge"))this.logItem(ev.label,ev.src,"cancel");
       this.events=this.events.filter(keep);
       this.logItem("ホールド開始：今の状態をキープ",this.curSrc);
       labels.push("ホールド：今の状態をキープ（進行中のミックスのみ完了させる）");return {ok:true,labels,hold:true,planned:true};}
     this.hold=false;
-    if(/テンポ.*(上|速|早|アップ)|速く|早く/.test(t2)){this.tempoBias+=3*k;this.retempo(bar);labels.push(`テンポ↑（+${(3*k).toFixed(0)} BPM を8小節かけて）`);hit=true;t2=t2.replace(/テンポ.*?(上げ|上|速|早|アップ)/,"");}
-    else if(/テンポ.*(下|遅|ダウン)|遅く|ゆっくり/.test(t2)){this.tempoBias-=3*k;this.retempo(bar);labels.push(`テンポ↓（-${(3*k).toFixed(0)} BPM を8小節かけて）`);hit=true;t2=t2.replace(/テンポ.*?(下げ|下|遅|ダウン)/,"");}
+    const BAND_HI=/140帯|140|ハイテンポ|速めのセット|速いセット|アップテンポ|高速/,BAND_LO=/120帯|125帯|120|ゆったりめ|遅めのセット|ゆっくりめ|ミドルテンポ/;
+    if(BAND_HI.test(t2)){this.requestBand("b140",labels);hit=true;t2=t2.replace(new RegExp("("+BAND_HI.source+")(帯)?(で|に|へ)?(上げて|下げて|落として|移って|変えて|行って|して|戻して)?","g"),"");}
+    else if(BAND_LO.test(t2)){this.requestBand("b120",labels);hit=true;t2=t2.replace(new RegExp("("+BAND_LO.source+")(帯)?(で|に|へ)?(上げて|下げて|落として|移って|変えて|行って|して|戻して)?","g"),"");}
+    const B=BANDS[this.band];
+    const tempo=d=>{this.tempoBias=Math.max(-4,Math.min(4,this.tempoBias+d));this.tempoRate=1;const to=this.tempoTarget();
+      this.tempoGoal={label:`テンポ ${to.toFixed(1)} BPM`,src:this.curSrc};labels.push(`テンポ${d>0?"↑":"↓"}（${B.ja}の中で ${to.toFixed(1)} BPM へ、1フレーズ1 BPM 以内でゆっくり）`);hit=true;};
+    if(/テンポ.*(上|速|早|アップ)|速く|早く/.test(t2)){tempo(2*k);t2=t2.replace(/テンポ.*?(上げ|上|速|早|アップ)/,"");}
+    else if(/テンポ.*(下|遅|ダウン)|遅く|ゆっくり/.test(t2)){tempo(-2*k);t2=t2.replace(/テンポ.*?(下げ|下|遅|ダウン)/,"");}
     let brokenHit=false;
     if(/ブレイクビート|変則|エレクトロ|ブロークン|崩して|崩す/.test(t2)){style("broken");brokenHit=true;}
     if(/ハード|激しく|激しい|硬く|インダストリアル|ゴリゴリ|攻撃的|アグレッシブ/.test(t2)){style("hard");delta("energy",0.2);delta("dark",0.15);}
     if(/グルーヴ|グルーブ|ファンキー|ファンク/.test(t2))style("groove");
     if(/グルーヴ|グルーブ|ファンキー|ファンク|ノリ|跳ね|スウィング|スイング|シャッフル|うねり/.test(t2))delta("swing",0.3);
     if(/トライバル|民族|土着|呪術|ジャングル|アフロ|太鼓|パーカッシブ/.test(t2))style("tribal");
-    if(/ミニマル|元に戻|最初の/.test(t2))style("minimal");
+    if(/ミニマル|元に戻|最初の|ヒプノ/.test(t2))style("minimal");
     if(/シンプル|すっきり/.test(t2))delta("density",-0.25);
     if(/ピーク|頂点|クライマックス|最高潮|爆発|山場/.test(t2)){this.planPeak(bar,k,labels);labels.unshift("エネルギー↑↑ 緊張感↑↑");hit=true;}
     else{let bt=null;for(const [key,re] of BREAK_WORDS)if(re.test(t2)){bt=key;t2=t2.replace(re,"");break;}
@@ -943,8 +1248,8 @@ class Conductor{
     if(/スカスカ|減らし|間引|少なく|薄く|削/.test(t2))delta("density",-0.3);
     if(!hit)return {ok:false,labels:[],suggest:SUGGEST};
     const speed=fast?"一気に":(slow?"少しずつ":"");
-    if(labels.some(l=>/[↑↓]/.test(l))&&!/ピーク/.test(labels.join("")))labels.push(`${speed}${fast?"次の小節から":"次の4小節境界から"}${gb}小節かけて変化`);
-    return {ok:true,labels,planned:this.events.some(e=>e.src===this.curSrc)||this.queue.some(q=>q.src===this.curSrc)||!!(this.e.bpmGlide&&this.e.bpmGlide.src===this.curSrc)};}
+    if(labels.some(l=>/[↑↓]/.test(l)&&!/^テンポ/.test(l))&&!/ピーク/.test(labels.join("")))labels.push(`${speed}${fast?"次の小節から":"次の4小節境界から"}${gb}小節かけて変化`);
+    return {ok:true,labels,planned:this.events.some(e=>e.src===this.curSrc)||this.queue.some(q=>q.src===this.curSrc)||!!(this.tempoGoal&&this.tempoGoal.src===this.curSrc)};}
 }
 
 // ---------- Live transport (worker-tick lookahead scheduler) ----------
@@ -966,7 +1271,7 @@ async function start(){
   if(!ctx) ctx=new (window.AudioContext||window.webkitAudioContext)({latencyHint:"interactive"});
   if(ctx.state!=="running") await ctx.resume();
   const seed=(Math.random()*4294967296)>>>0;
-  S.style="minimal";
+  S.style=BANDS[S.band].first;
   eng=new Engine(ctx,seed);eng.onStep=queueViz;eng.cond.auto=autoWanted;
   eng.nextTime=ctx.currentTime+0.06;
   if(!ticker) ticker=makeTicker(tick);
@@ -997,21 +1302,27 @@ function updatePanel(){
   if(!eng){$("phrase").textContent="フレーズ —";$("timeline").innerHTML="<li><span>—</span><span>スタートすると予定が表示されます</span></li>";return;}
   const C=eng.cond,M=C.mix,b=vizBar;
   $("phrase").textContent=`フレーズ ${Math.floor(b/16)+1} ・ ${b%16+1}/16小節`;
-  $("nowStyle").textContent=STYLES[eng.low.style].ja+(M&&M.state==="mixing"?"（キック・ベース）":"");
-  const nx=M?M.to:(C.queue[0]?C.queue[0].style:null);
-  $("arrow").textContent=nx?"→":"";$("nextStyle").textContent=nx?STYLES[nx].ja:"";
-  const tgt=eng.bpmGlide?eng.bpmGlide.to:eng.bpm;
-  $("bpm").textContent=`${eng.bpm.toFixed(1)} BPM${Math.abs(tgt-eng.bpm)>0.05?" → "+tgt.toFixed(0):""}`;
+  $("nowStyle").textContent=C.ja(eng.low.style)+(M&&M.state==="mixing"?"（キック・ベース）":"");
+  const nq=C.queue.find(q=>q.style),nx=M?M.to:(nq?nq.style:null);
+  $("arrow").textContent=nx?"→":"";$("nextStyle").textContent=nx?C.ja(nx):"";
+  const tgt=eng.bpmGlide?eng.bpmGlide.to:C.tempoTarget();
+  $("bpm").textContent=`${eng.bpm.toFixed(1)} BPM${Math.abs(tgt-eng.bpm)>0.05?" → "+tgt.toFixed(1):""}`;
+  renderBand();
+  const SL=C.set,cur=SL.list[SL.idx];
+  $("setlist").innerHTML=`<span class="bd">${BANDS[C.band].ja}${C.pendingBand?" → "+BANDS[C.pendingBand].ja:""}</span><span class="ph">セットリスト${C.auto?"":"（おまかせ時）"}：</span>`+
+    SL.list.slice(SL.idx,SL.idx+5).map((x,i)=>`<i class="${i===0?"cur":""}">${esc(C.ja(x.style))}<small>${PHASE_JA[x.phase]}${i===0?` ${Math.min(SL.phr,x.phrases)}/${x.phrases}`:""}</small></i>`).join("");
+  $("arc").innerHTML=PHASES.map(ph=>`<span class="${cur&&cur.phase===ph?"on":""}">${PHASE_JA[ph]}</span>`).join("");
+  $("upinfo").textContent="上モノ："+eng.decks.filter(d=>d.upOn&&d.arr.init).map(d=>`${C.ja(d.style)}＝${(PATCHES[d.style][d.arr.variant]||{}).ja}・${SECTION_JA[d.arr.section]}`).join(" ／ ");
   if(M){const pr=Math.max(0,Math.min(1,(b-M.m)/M.L));$("mixbar").style.width=(pr*100)+"%";
-    $("mixinfo").textContent=b<M.m?`${M.m-b}小節後にミックス開始（${STYLES[M.from].ja} → ${STYLES[M.to].ja}、${M.L}小節）`:
-      `ミックス中 ${Math.round(pr*100)}%：${STYLES[M.from].ja} → ${STYLES[M.to].ja}（${M.state==="swapped"?"キック＋ベース交換済み":"交換まで"+(M.swap-b)+"小節"}）`;}
-  else{$("mixbar").style.width="0";$("mixinfo").textContent=C.queue.length?"次のミックスを準備中":"ミックスなし";}
+    $("mixinfo").textContent=b<M.m?`${M.m-b}小節後にミックス開始（${C.ja(M.from)} → ${C.ja(M.to)}、${M.L}小節）`:
+      `ミックス中 ${Math.round(pr*100)}%：${C.ja(M.from)} → ${C.ja(M.to)}（${M.state==="swapped"?"キック＋ベース交換済み":"交換まで"+(M.swap-b)+"小節"}）`;}
+  else{$("mixbar").style.width="0";$("mixinfo").textContent=C.pendingBand?`${BANDS[C.pendingBand].ja}セットへ移行準備中（ビートレス区間でテンポ切替）`:(C.queue.length?"次のミックスを準備中":"ミックスなし");}
   for(const k of METERS){const el=$("m-"+k);el.firstChild.style.width=(C.p[k]*100)+"%";el.lastChild.style.left=`calc(${C.target(k)*100}% - 1px)`;}
   const D=eng.drop;const items=[];
-  if(D.active)items.push(`<li><span>ブレイク中</span><span>${BREAKS[D.type].ja}${D.endBar>0?`（${D.len}小節、残り${Math.max(1,D.endBar-b)}小節）`:"（手動）"}</span></li>`);
+  if(D.active)items.push(`<li><span>ブレイク中</span><span>${D.type==="kick"&&D.recipe&&D.recipe.name!=="手動"?"キック抜き（"+D.recipe.name+"）":BREAKS[D.type].ja}${D.endBar>0?`（${D.len}小節、残り${Math.max(1,D.endBar-b)}小節）`:"（手動）"}</span></li>`);
   items.push(...C.events.map(e=>`<li><span>${e.bar-b<=0?"まもなく":"あと"+(e.bar-b)+"小節"}</span><span>${e.label}</span></li>`));
-  if(C.queue.length)items.push(...C.queue.map(q=>`<li><span>その後</span><span>${STYLES[q.style].ja}へミックス</span></li>`));
-  if(C.auto&&!items.length)items.push(`<li><span>おまかせ</span><span>次のフレーズ境界で流れを判断</span></li>`);
+  if(C.queue.length)items.push(...C.queue.map(q=>`<li><span>その後</span><span>${q.band?BANDS[q.band].ja+"セットへ移行":C.ja(q.style)+"へミックス"}</span></li>`));
+  if(C.auto&&!items.length&&cur)items.push(`<li><span>おまかせ</span><span>${PHASE_JA[cur.phase]}：${C.ja(cur.style)}（${Math.min(SL.phr,cur.phrases)}/${cur.phrases}フレーズ）→ 次は${SL.list[SL.idx+1]?C.ja(SL.list[SL.idx+1].style):"アークを組み直し"}</span></li>`);
   $("timeline").innerHTML=items.length?items.join(""):`<li><span>—</span><span>${C.hold?"ホールド中：このままキープ":"予定なし（意図を送ると計画されます）"}</span></li>`;
   if(C.logVer!==shownLogVer){shownLogVer=C.logVer;renderLog(C.log);}
   $("holdinfo").textContent=C.hold?"ホールド中":(C.auto?"おまかせ中":"");
@@ -1027,7 +1338,7 @@ function draw(){
   const W=cv.width,H=cv.height,lw=230,top=46,cw=(W-lw-20)/16,rh=(H-top-10)/PARTS.length;
   g2.fillStyle="#0b0c0f";g2.fillRect(0,0,W,H);g2.textBaseline="middle";g2.font="24px system-ui,sans-serif";
   if(playing&&vizBrk){g2.fillStyle=vizDrop?"rgba(224,93,93,0.18)":"rgba(246,173,85,0.16)";g2.fillRect(0,0,W,top-6);g2.fillStyle=vizDrop?"#ff8a8a":"#f6c27a";g2.fillText("● ブレイク中 — "+vizDropInfo+(vizFill?"  ／ フィル":""),14,top/2-2);}
-  else{g2.fillStyle="#56606b";g2.fillText(playing?("デッキ："+vizDecks.map(d=>STYLES[d].ja).join(" ＋ ")):"停止中",14,top/2-2);}
+  else{g2.fillStyle="#56606b";g2.fillText(playing?("デッキ："+vizDecks.map(d=>styleJa(d)).join(" ＋ ")+`　［${BANDS[S.band].ja}］`):"停止中",14,top/2-2);}
   PARTS.forEach((p,i)=>{const y=top+i*rh;g2.fillStyle="#9aa3ad";g2.fillText(PART_JA[p],14,y+rh/2);
     for(let s=0;s<16;s++){const x=lw+s*cw,v=vizGrid[i][s];
       g2.fillStyle=s%4===0?"#1d2026":"#15171b";g2.fillRect(x+3,y+4,cw-6,rh-8);
@@ -1040,7 +1351,7 @@ requestAnimationFrame(draw);
 // ---------- UI ----------
 function setPlayUI(on){const b=$("play");b.textContent=on?"■ ストップ":"▶ スタート";b.classList.toggle("on",on);if(!on)$("status").textContent="停止中";}
 $("play").addEventListener("click",()=>{playing?stop():start();});
-const INTENT_BTNS=["盛り上げて","もっとハードに","落ち着かせて","暗く","明るく","グルーヴを出して","トライバルに","ミニマルに戻して","ブレイク入れて","ピークを作って","ずっとこのまま","ブレイクビート風に"];
+const INTENT_BTNS=["盛り上げて","もっとハードに","落ち着かせて","暗く","明るく","グルーヴを出して","トライバルに","ミニマルに戻して","ブレイク入れて","ピークを作って","ずっとこのまま","ブレイクビート風に","120帯で","140帯で","少しテンポを上げて","少しテンポを下げて"];
 $("intents").innerHTML=INTENT_BTNS.map(t=>`<button data-intent="${t}">${t}</button>`).join("");
 $("intents").addEventListener("click",e=>{const b=e.target.closest("button");if(b)sendIntent(b.dataset.intent);});
 const QUICK_BRK=["おまかせ",...BREAK_ORDER];
@@ -1059,6 +1370,10 @@ function sendIntent(text){text=String(text||"").trim();if(!text)return;
   const res=eng.cond.intent(text);showInterp(res,text);updatePanel();return res;}
 $("send").addEventListener("click",()=>{sendIntent($("say").value);$("say").value="";});
 $("say").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing){sendIntent($("say").value);$("say").value="";}});
+function renderBand(){const b=eng?eng.cond.band:S.band,pb=eng?eng.cond.pendingBand:null;
+  for(const k of Object.keys(BANDS)){const el=$("band"+k);el.classList.toggle("on",k===b);el.textContent=BANDS[k].ja+(k===pb?"…":"");}}
+$("bandb120").parentNode.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  if(eng)sendIntent(BANDS[b.dataset.band].ja+"で");else{S.band=b.dataset.band;renderBand();$("bpm").textContent=`${BANDS[S.band].start} BPM`;$("nowStyle").textContent=styleJa(BANDS[S.band].first);}});
 $("auto").addEventListener("click",()=>{if(eng){sendIntent(eng.cond.auto?"おまかせやめて":"おまかせ");}else{autoWanted=!autoWanted;$("auto").textContent="おまかせ："+(autoWanted?"オン":"オフ");$("auto").classList.toggle("on",autoWanted);}});
 function bind(id,key,fmt,after){const el=$(id);const upd=()=>{S[key]=+el.value;const v=$("v-"+id);if(v)v.textContent=fmt(S[key]);if(after)after();};el.addEventListener("input",upd);upd();}
 bind("vol","vol",v=>v,()=>eng&&eng.applyParams());
@@ -1075,10 +1390,11 @@ document.addEventListener("keyup",e=>{if(e.code==="KeyK")dropUp();});
 
 // ---------- Test hook: offline render with scripted intents (not used by UI) ----------
 window.__renderOffline=async function(o){
-  const saved=JSON.stringify(S);S.style=o.style||"minimal";
-  try{const sr=44100,bars=o.bars,est=bars*16*60/(o.minBpm||120)/4+2;
+  const saved=JSON.stringify(S);S.band=o.band||"b120";S.style=o.style||BANDS[S.band].first;
+  try{const sr=44100,bars=o.bars,est=bars*16*60/(o.minBpm||Math.min(BANDS.b120.min,BANDS[S.band].min)-1)/4+2;
     const oc=new OfflineAudioContext(2,Math.ceil(sr*est),sr),e=new Engine(oc,o.seed>>>0);e.debug=true;
-    if(o.auto){e.cond.auto=true;if(o.autoWaitRange)e.cond.autoWaitRange=o.autoWaitRange;e.cond.autoWait=e.cond.autoWaitRange[0];}
+    if(o.auto)e.cond.auto=true;
+    if(o.setup)o.setup(e);
     const intents=[...(o.intents||[])],res=[],swaps=[];let t=0.01,lastLow=e.low.id;
     e.onStep=(s,tt)=>{if(s===0&&e.low.id!==lastLow){swaps.push([tt,lastLow,e.low.id]);lastLow=e.low.id;}};
     // schedule incrementally (like the live lookahead scheduler) using suspend/resume, so the graph stays small
@@ -1107,7 +1423,10 @@ window.__renderOffline=async function(o){
     return {seconds:+end.toFixed(1),peakDb:+(20*Math.log10(pk)).toFixed(2),rmsDb:+(10*Math.log10(ss/(2*n))).toFixed(2),nan,
       kicks:kl.length,minKickGap:+minGap.toFixed(4),kicksFromTwoDecksNear:diffDeckNear,bassNotes:bl.length,bassTwoDecksNear:bassDiffNear,bassOldDeckAfterSwap:bassOldAfterSwap,
       swaps:swaps.map(x=>+x[0].toFixed(2)),maxBpmStepPerBar:+maxBpmStep.toFixed(3),
-      bpmPath:e.bpmLog.filter((x,i)=>i%4===0).map(x=>`${x[0]}:${x[1].toFixed(1)}:${x[3]}`).join(" "),segs,breaks:e.breakLog.map(x=>`${x.type}@${x.bar}x${x.len}`),intents:res,log:e.cond.log.slice().reverse().map(x=>`[${x.bar}] ${x.status==="cancel"?"取消 ":""}${x.text} ← ${x.src}`)};
+      bpmPath:e.bpmLog.filter((x,i)=>i%4===0).map(x=>`${x[0]}:${x[1].toFixed(1)}:${x[3]}`).join(" "),segs,breaks:e.breakLog.map(x=>`${x.type}@${x.bar}x${x.len}`),intents:res,
+      bpmLog:o.full?e.bpmLog:undefined,kickTimes:o.full?kl.map(x=>+x[0].toFixed(4)):undefined,kpLog:o.full?e.kpLog:undefined,arrLog:o.full?e.arrLog:undefined,upLog:o.full?e.upLog:undefined,
+      breakFull:e.breakLog.map(x=>({type:x.type,bar:x.bar,len:x.len,key:x.recipe,name:x.name})),returnTimes:e.returnTimes.map(x=>+x.toFixed(4)),band:e.cond.band,
+      set:e.cond.set.list.map(x=>`${x.phase}:${x.style}x${x.phrases}`),log:e.cond.log.slice().reverse().map(x=>`[${x.bar}] ${x.status==="cancel"?"取消 ":""}${x.text} ← ${x.src}`)};
   }finally{Object.assign(S,JSON.parse(saved));}
 };
 </script>

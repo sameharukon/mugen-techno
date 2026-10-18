@@ -6,7 +6,8 @@ const runs = process.argv[2]==='quick' ? [
   {name:'scripted', bars:40, seed:7, intents:[{bar:1,text:'一気にハードに'}]}
 ] : [
   {name:'scripted intents', bars:120, seed:7, intents:[{bar:1,text:'もっとハードに'},{bar:20,text:'少し暗く'},{bar:36,text:'グルーヴを出して'},{bar:70,text:'ブレイク入れて'},{bar:80,text:'一気にトライバルに'},{bar:100,text:'落ち着かせて'}]},
-  {name:'おまかせ journey', bars:176, seed:99, auto:true, autoWaitRange:[1,2]},
+  {name:'おまかせ journey (120帯)', bars:176, seed:99, auto:true},
+  {name:'band up then down', bars:120, seed:11, intents:[{bar:4,text:'140帯に上げて'},{bar:40,text:'もっとハードに'},{bar:70,text:'120帯に戻して'}]},
   {name:'manual drop across swap', bars:44, seed:3, intents:[{bar:1,text:'一気にトライバルに'}], manualDrop:[6,9]},
 ];
 for (const r of runs){

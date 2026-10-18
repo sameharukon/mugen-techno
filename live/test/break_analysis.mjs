@@ -6,13 +6,14 @@ const file = process.argv[2] || '/workspace/techno/live/index.html';
 const b = await chromium.launch({ executablePath:'/usr/bin/google-chrome', args:['--no-sandbox'] });
 async function harness(cfg){
   const sr=44100,saved=JSON.stringify(S);
-  Object.assign(S,{style:cfg.style,crash:cfg.crash??true,riser:true,fill:true,dropManual:false,autoDrop:false});
+  Object.assign(S,{band:cfg.band||'b120',style:cfg.style,crash:cfg.crash??true,riser:true,fill:true,dropManual:false,autoDrop:false});
   try{
-  const e0bpm=STYLES[cfg.style].bpm,pre=cfg.pre||4,bars=pre+cfg.len+4,secs=bars*16*60/e0bpm/4+2;
+  const e0bpm=BANDS[cfg.band||'b120'].min-1,pre=cfg.pre||4,bars=pre+cfg.len+4,secs=bars*16*60/e0bpm/4+2;
   const oc=new OfflineAudioContext(4,Math.ceil(sr*secs),sr),e=new Engine(oc,cfg.seed>>>0);e.debug=true;
   const m=oc.createChannelMerger(4);e.hpCtl.connect(m,0,2);e.lvlCtl.connect(m,0,3);m.connect(oc.destination);
   if(cfg.mix){const ls=[];e.cond.requestStyle(cfg.mix,{len:16,grid:4,gap:1,dropLen:cfg.len,breakType:cfg.type},ls);}
-  else e.cond.addEvent({bar:pre,type:"break",len:cfg.len,btype:cfg.type,label:"test"});
+  else{let R=null;if(cfg.recipe){R={pos:"end",micro:0,len:cfg.len,...cfg.recipe};R.name=kdName(R);R.key=[R.len,R.micro,R.remove,R.fill,R.riser,R.impact].join("|");}
+    e.cond.addEvent({bar:pre,type:"break",len:cfg.len,btype:cfg.type,recipe:R,label:"test"});}
   const barT=[];let t=0.01;
   e.onStep=(s,tt)=>{if(s===0)barT.push(tt);};
   const sched=lim=>{while(e.step<bars*16&&t<lim){e.scheduleStep(t);t+=e.s16;}};
@@ -32,7 +33,7 @@ async function harness(cfg){
   let latRef=null;{for(let i=at(barT[0]);i<at(barT[0]+0.2);i++)if(Math.abs(L[i])>0.02||Math.abs(R[i])>0.02){latRef=+((i/sr-barT[0])*1000).toFixed(2);break;}}
   let preRms=0;{const i0=at(ret-0.02),i1=at(ret-0.004);for(let i=i0;i<i1;i++)preRms+=L[i]*L[i];preRms=+(10*Math.log10(preRms/(i1-i0)+1e-12)).toFixed(1);}
   const pst=P.map(p=>{let md=0;for(let i=1;i<n;i++)md=Math.max(md,Math.abs(p[i]-p[i-1]));return +md.toPrecision(3);});
-  return {cfg:`${cfg.type}${cfg.mix?"(mix→"+cfg.mix+")":""} ${cfg.style} len${cfg.len}`,peakDb:+(20*Math.log10(pk)).toFixed(2),nan,
+  return {cfg:`${cfg.type}${cfg.recipe?"["+Object.values(cfg.recipe).join("/")+"]":""}${cfg.mix?"(mix→"+cfg.mix+")":""} ${cfg.band||"b120"}:${cfg.style} len${cfg.len}`,peakDb:+(20*Math.log10(pk)).toFixed(2),nan,
     normal,entry:entry!=null?met(entry):null,marks:e.brkMarks.map(([T,k])=>({k,...met(T)})),ret:ret!=null?met(ret):null,
     retExact:ret!=null&&Math.abs(ret-expectRet)<1e-9,kickOnReturn:kAfter?+((kAfter[0]-ret)*1e6).toFixed(3):null,
     onsetMs:onset,onsetRefFromSilenceMs:latRef,preReturnRmsDb:preRms,probeMaxStep:{hpHz:pst[0],riser:pst[1]},
@@ -45,7 +46,13 @@ const types=await p.evaluate('BREAK_ORDER');
 const cfgs=types.map((type,i)=>({type,style:'minimal',seed:11+i,len:{kick:2,breakdown:8,filter:4,hpbuild:4,bassonly:2,perconly:2,tapestop:1,stutter:1,echo:1,halftime:4,silence:1}[type]}));
 cfgs.push({type:'tapestop',style:'hard',seed:3,len:1},{type:'stutter',style:'groove',seed:4,len:1},{type:'halftime',style:'tribal',seed:5,len:8},
   {type:'echo',style:'broken',seed:6,len:2},{type:'breakdown',style:'hard',seed:7,len:16,pre:2},{type:'silence',style:'tribal',seed:8,len:1},
-  {type:'tapestop',style:'minimal',seed:9,len:1,mix:'hard',pre:0},{type:'hpbuild',style:'groove',seed:10,len:2,mix:'tribal',pre:0},{type:'echo',style:'tribal',seed:12,len:1,mix:'minimal',pre:0});
+  {type:'tapestop',style:'minimal',seed:9,len:1,mix:'hard',pre:0},
+  // kick-drop recipe variety (removal modes, fills, risers, impacts) incl. 140-band
+  ...[{remove:'lowcut',fill:'echo',riser:'none',impact:'none'},{remove:'thin',fill:'gap',riser:'noise',impact:'crash'},{remove:'beat1',fill:'tom',riser:'pitch',impact:'boom'},
+     {remove:'offbeat',fill:'triplet',riser:'noise',impact:'crashboom'},{remove:'kickbass',fill:'kickroll16',riser:'pitch',impact:'crashboom',band:'b140',style:'hard'},
+     {remove:'kick',fill:'kickroll8',riser:'noise',impact:'boom',band:'b140',style:'groove'},{remove:'kick',fill:'revcym',riser:'none',impact:'crash',len:4,band:'b140',style:'tribal'},
+     {remove:'kick',fill:'snareBuild',riser:'noise',impact:'crash',len:4},{remove:'kick',fill:'gap',riser:'none',impact:'none',micro:2,len:1},{remove:'kickbass',fill:'echo',riser:'none',impact:'crash',micro:4,len:1}]
+    .map((x,i)=>{const {band,style,len,...recipe}=x;return {type:'kick',style:style||'minimal',band,seed:40+i,len:len||2,recipe};}),{type:'hpbuild',style:'groove',seed:10,len:2,mix:'tribal',pre:0},{type:'echo',style:'tribal',seed:12,len:1,mix:'minimal',pre:0});
 const t0=Date.now();
 for(const c of cfgs){if(c.mix)c.len=c.len;const r=await p.evaluate(`(${harness.toString()})(${JSON.stringify({...c,len:c.mix?c.len:c.len,pre:c.mix?20:c.pre})})`);console.log(JSON.stringify(r));}
 console.log('errors',errs,'secs',(Date.now()-t0)/1000);
