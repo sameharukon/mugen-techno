@@ -16,8 +16,6 @@ button{background:var(--panel);color:var(--fg);border:1px solid var(--line);bord
 button:hover{border-color:#3a414b}
 button.play{background:var(--acc);color:#062522;border-color:var(--acc);font-weight:700;min-width:120px}
 button.play.on{background:var(--red);border-color:var(--red);color:#fff}
-button.mute{padding:6px 12px;font-size:13px}
-button.mute.off{opacity:.35;text-decoration:line-through}
 button.drop{font-weight:700}
 button.drop.on,button.tog.on{background:var(--red);border-color:var(--red);color:#fff}
 button.tog.on{background:#805ad5;border-color:#805ad5}
@@ -44,25 +42,25 @@ button.tog.on{background:#805ad5;border-color:#805ad5}
 #timeline{list-style:none;margin:6px 0 0;padding:0;font-size:12px;max-height:150px;overflow:auto}
 #timeline li{display:flex;gap:10px;padding:3px 0;border-bottom:1px solid #1f232a}
 #timeline li span:first-child{color:var(--acc2);min-width:70px;font-variant-numeric:tabular-nums}
-#history{font-size:11px;color:var(--dim);margin-top:6px}
-select,input[type=text]{width:100%;background:#0b0c0f;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:inherit}
+#logwrap{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+#log{list-style:none;margin:0;padding:0;font-size:12px;height:168px;overflow-y:auto;overflow-x:hidden}
+#log li{display:grid;grid-template-columns:86px 42px 1fr;gap:8px;padding:3px 0;border-bottom:1px solid #1f232a;line-height:1.35}
+#log .lb{color:var(--acc2);font-variant-numeric:tabular-nums}#log .lb i{color:var(--dim);font-style:normal;font-size:11px}
+#log .lt{color:var(--dim);font-variant-numeric:tabular-nums}
+#log .ld em{display:block;color:var(--dim);font-style:normal;font-size:11px}
+#log li.cx .ld{color:#7c8592;text-decoration:line-through}#log li.cx .ld em{text-decoration:none}
+#log li.cx .ld b{color:var(--red);font-weight:500;text-decoration:none;margin-right:4px}
+#log li.empty{display:block;color:var(--dim)}
+input[type=text]{width:100%;background:#0b0c0f;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font:inherit}
 input[type=range]{width:100%;accent-color:var(--acc)}
 #viz{width:100%;height:170px;display:block;background:#0b0c0f;border:1px solid var(--line);border-radius:10px;margin:0 0 12px}
-details{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
-summary{cursor:pointer;color:var(--dim)}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:12px}
-.grid label{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-bottom:6px}
-.grid label b{color:var(--fg);font-weight:500}
-.switch{display:flex;align-items:center;gap:8px;font-size:13px;margin-top:6px}
-.row{display:flex;gap:8px;margin-top:6px}.row>*{flex:1}
-.mutes{display:flex;gap:6px;flex-wrap:wrap}
 .status{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
 <main>
 <h1>TECHNO LIVE — 意図で操るDJ</h1>
-<div class="sub">数値ではなく「どうしたいか」を伝えてください。指揮者（コンダクター）がフレーズ単位でDJのように少しずつ変えていきます。ブレイクは種類を指定することも、おまかせにすることもできます。（スペース：再生/停止 ・ K：キック抜き）</div>
+<div class="sub">数値ではなく「どうしたいか」を伝えてください。指揮者（コンダクター）がフレーズ単位でDJのように少しずつ変えていきます。ブレイクは種類を指定することも、おまかせにすることもできます。終わった予定は「消化した予定」に残ります。（スペース：再生/停止 ・ K：キック抜き）</div>
 <div class="top">
   <button id="play" class="play">▶ スタート</button>
   <button id="drop" class="drop">キック抜き（K）</button>
@@ -78,7 +76,7 @@ summary{cursor:pointer;color:var(--dim)}
     <div class="say"><input id="say" type="text" placeholder="例：少し暗くして一気に盛り上げて／トライバルに／ブレイク入れて"><button id="send">送る</button></div>
     <div id="interp"></div>
     <div class="chips" id="suggest"></div>
-    <div id="history"></div>
+    <div id="logwrap"><div class="h"><span>消化した予定</span><span id="logcount"></span></div><ul id="log"><li class="empty">まだありません（スタートすると、終わった予定がここに残ります）</li></ul></div>
   </div>
   <div class="card">
     <div class="h"><span>いまの状態</span><span id="phrase">フレーズ — </span></div>
@@ -90,31 +88,6 @@ summary{cursor:pointer;color:var(--dim)}
   </div>
 </div>
 <canvas id="viz" width="1900" height="340"></canvas>
-<details id="adv"><summary>詳細設定</summary>
-<div class="grid">
-  <div><label>パートのミュート</label><div class="mutes" id="mutes"></div></div>
-  <div><label>スタイルを直接指定（DJミックスで移行）</label><div class="row" style="margin-top:0"><select id="style">
-      <option value="minimal">ミニマル</option><option value="hard">ハードテクノ</option><option value="groove">ハードグルーヴ</option>
-      <option value="tribal">トライバル</option><option value="broken">ブレイクビート風</option></select><button id="gostyle">移行</button></div></div>
-  <div><label>キー（マイナー）</label><select id="key"></select></div>
-  <div><label>フィルター（基準）<b id="v-cutoff"></b></label><input id="cutoff" type="range" min="0" max="1" step="0.001" value="0.5">
-    <div class="switch"><input id="sweep" type="checkbox" checked><span>16小節のフィルター自動スイープ</span></div></div>
-  <div><label>ディレイ ミックス（基準）<b id="v-dmix"></b></label><input id="dmix" type="range" min="0" max="1" step="0.01" value="0.35"></div>
-  <div><label>ディレイ フィードバック（基準）<b id="v-dfb"></b></label><input id="dfb" type="range" min="0" max="0.85" step="0.01" value="0.42"></div>
-  <div><label>バリエーション（基準）<b id="v-var"></b></label><input id="var" type="range" min="0" max="1" step="0.01" value="0.5"></div>
-  <div><label>ブレイクを選んで入れる</label><select id="brktype"></select>
-    <div class="row"><select id="brklen"><option value="0" selected>長さ：おすすめ</option><option value="1">1小節</option><option value="2">2小節</option><option value="4">4小節</option><option value="8">8小節</option><option value="16">16小節</option></select>
-      <button id="gobrk">入れる</button></div><div class="status" id="brkdesc"></div></div>
-  <div><label>ブレイクの演出</label>
-    <div class="switch"><input id="fill" type="checkbox" checked><span>復帰前にフィル</span></div>
-    <div class="switch"><input id="riser" type="checkbox" checked><span>ライザー（ハイパス＋ノイズ）</span></div>
-    <div class="switch"><input id="crash" type="checkbox" checked><span>復帰の1拍目にクラッシュ</span></div></div>
-  <div><label>定期的な自動キック抜き</label>
-    <div class="switch"><input id="autodrop" type="checkbox"><span>オン</span></div>
-    <div class="row"><select id="autoevery"><option value="16">16小節ごと</option><option value="32" selected>32小節ごと</option><option value="64">64小節ごと</option></select>
-      <select id="autolen"><option value="rand" selected>ランダム</option><option value="1">1小節</option><option value="2">2小節</option><option value="4">4小節</option><option value="8">8小節</option></select></div></div>
-  <div><label>デバッグ</label><div class="status" id="seedinfo">シード：スタート時にランダム</div></div>
-</div></details>
 </main>
 <script>
 "use strict";
@@ -126,8 +99,8 @@ const PART_JA={kick:"キック",hat:"ハット",clap:"クラップ",perc:"パー
 const STYLES={minimal:{ja:"ミニマル",bpm:125},hard:{ja:"ハードテクノ",bpm:142},groove:{ja:"ハードグルーヴ",bpm:134},tribal:{ja:"トライバル",bpm:128},broken:{ja:"ブレイクビート風",bpm:128}};
 // base settings (詳細設定). The conductor's intent parameters modulate these.
 const S={key:9,cutoff:0.5,sweep:true,dmix:0.35,dfb:0.42,variation:0.5,vol:0.8,style:"minimal",
-  dropManual:false,fill:true,riser:true,crash:true,autoDrop:false,autoEvery:32,autoLen:"rand",
-  mute:{kick:false,hat:false,clap:false,perc:false,bass:false,stab:false}};
+  dropManual:false,fill:true,riser:true,crash:true,
+  };
 const cutoffHz=v=>Math.round(120*Math.pow(2000/120,v));
 const keyOff=()=>(((S.key-9)+17)%12-5);
 const mtof=m=>440*Math.pow(2,(m-69)/12);
@@ -274,7 +247,7 @@ class Engine{
     this.echoOut=c.createGain();this.echoOutEnv=new Env(this.echoOut.gain,1);
     this.trim.connect(this.echoSend).connect(this.echoDL);this.echoDL.connect(this.echoLP).connect(this.echoHP);
     this.echoHP.connect(this.echoFb).connect(this.echoDL);this.echoHP.connect(this.echoOut).connect(this.vol);this.echoPreAt=-9;
-    this.bus={};for(const p of PARTS){const g=c.createGain();g.gain.value=S.mute[p]?0:1;g.connect(this.sum);this.bus[p]=g;}
+    this.bus={};for(const p of PARTS){const g=c.createGain();g.gain.value=1;g.connect(this.sum);this.bus[p]=g;}
     this.fillBus=c.createGain();this.fillBus.gain.value=1;this.fillBus.connect(this.sum);
     this.riserBus=c.createGain();this.riserBus.connect(this.vol); // riser bypasses the master HPF
     // persistent riser voice: looped noise -> bandpass (freq from riserFreq) -> gain (level from riserLvl)
@@ -315,7 +288,7 @@ class Engine{
     this.bpm=STYLES[S.style].bpm;this.bpmGlide=null;this.setBpm(this.bpm,0);
     this.step=0;this.nextTime=0;this.bar=0;this.onStep=null;
     this.initUpper();this.decks=[this.makeDeck(S.style,true)];this.low=this.decks[0];this.cur=this.low.out;this.cond=new Conductor(this);
-    this.drop={active:false,type:"kick",src:null,endBar:-1,startBar:0,len:0,armed:false,tr:0,riserOn:false,spaceBoost:0};this.autoLen=2;this.returnTimes=[];this.dropTimes=[];
+    this.drop={active:false,type:"kick",src:null,endBar:-1,startBar:0,len:0,armed:false,tr:0,riserOn:false,spaceBoost:0};this.returnTimes=[];this.dropTimes=[];
     this.breakLog=[];this.brkMarks=[];
     this.stats={kicks:0,dropBars:0,perc:0,fills:0,drops:0};this.minLead=Infinity;
   }
@@ -346,7 +319,7 @@ class Engine{
     if(this.echoDL)this.echoDL.delayTime.setTargetAtTime(dt,t,0.05);}
   applyParams(){const t=this.ctx.currentTime;
     this.vol.gain.setTargetAtTime(S.vol,t,0.03);this.applyBarParams(t);
-    for(const p of PARTS)this.bus[p].gain.setTargetAtTime(S.mute[p]?0:1,t,0.01);}
+}
   free(src,...nodes){src.onended=()=>{src.disconnect();for(const n of nodes)n.disconnect();};}
   lfo(){if(!S.sweep) return 0.5;const ph=((this.bar%16)+(this.step%16)/16)/16;return 0.5-0.5*Math.cos(2*Math.PI*ph);}
   noiseSrc(t,dur){const s=this.ctx.createBufferSource();s.buffer=this.noise;s.start(t,this.rand()*1.5,dur+0.01);return s;}
@@ -508,7 +481,10 @@ class Engine{
         this.echoFbEnv.hold(tr);this.echoFbEnv.lin(0.25,tr+bd);this.echoOutEnv.hold(tr);this.echoOutEnv.lin(0,tr+2*bd);break;}
     }
     if(S.crash&&B.crash) this.crash(tr);}
-  dropEnd(t){Object.assign(this.drop,{active:false,type:"kick",src:null,endBar:-1,armed:false,spaceBoost:0});}
+  dropEnd(t){const D=this.drop,B=BREAKS[D.type];
+    if(D.src==="manual")this.cond.logItem("キック抜き（手動）：復帰","手動（K）","done",this.bar,t);
+    else this.cond.logItem(`${B.ja} ${D.len}小節：復帰`,D.meta?D.meta.src:"自動","done",this.bar,t);D.meta=null;
+    Object.assign(this.drop,{active:false,type:"kick",src:null,endBar:-1,armed:false,spaceBoost:0});}
   // accelerating snare roll over the last 2 bars (component used by breakdown / hp build)
   buildRoll(t,s,ev){const D=this.drop,rel=D.endBar-this.bar,s16=this.s16;
     if(rel===2&&D.len>=4){if(s%2===0){this.snare(t,0.18+0.012*s);ev.fill=1;}}
@@ -524,21 +500,17 @@ class Engine{
     }
     return k;}
 
-  scheduleStep(t){
+  scheduleStep(t){if(this.t0==null)this.t0=t;this.lastT=t;
     const s=this.step%16,v=this.effVar(),r=this.rand,D=this.drop,C=this.cond,p=C.p;
     if(s===0){
       this.bar=(this.step/16)|0;
       // DJ pitch-ride: tempo glides bar by bar (constant within a bar so drop/return timing stays exact)
       if(this.bpmGlide){const g=this.bpmGlide;if(this.bar>=g.b0){const k=Math.min(1,(this.bar-g.b0+1)/g.bars);
-        this.bpm=g.from+(g.to-g.from)*k;if(k>=1)this.bpmGlide=null;this.setBpm(this.bpm,t);}}
+        this.bpm=g.from+(g.to-g.from)*k;if(k>=1){this.bpmGlide=null;if(g.label)C.logItem(g.label+"：到達",g.src,"done",this.bar,t);}this.setBpm(this.bpm,t);}}
       if(this.debug)this.bpmLog.push([this.bar,+this.bpm.toFixed(3),this.low.style,this.decks.map(d=>d.style).join("+")]);
       if(D.active && D.armed) this.dropEnd(t);      // return already prepared during the previous beat
       if(D.active && !D.armed && D.type==="kick" && (D.src==="manual"||this.bar>=D.endBar||S.dropManual)){D.src="manual";D.endBar=-1;}
       C.onBar(this.bar,t);                          // conductor: intents, phrase plans, DJ mix events
-      const ae=S.autoEvery,cyc=this.bar%ae;
-      if(cyc===0) this.autoLen=[1,2,2,4,4,8][Math.floor(r()*6)];
-      const len=Math.min(S.autoLen==="rand"?this.autoLen:+S.autoLen,ae/2);
-      if(S.autoDrop && !D.active && this.bar>0 && cyc===ae-len) this.dropStart(t,"auto",len);
       this.applyBarParams(t);
       for(const d of this.decks){d.pat.nextBar(v);d.kickBar=this.buildKickBar(d);}
     }
@@ -778,12 +750,23 @@ const BREAK_WORDS=[["tapestop",/テープ|ピッチダウン|ストップ/],["st
   ["halftime",/ハーフタイム|ハーフ|半分のノリ/],["silence",/サイレンス|無音|静寂|一瞬止/],["hpbuild",/ハイパス/],["filter",/フィルター|こもら|こもっ|隣の部屋|ローパス/],
   ["breakdown",/ブレイクダウン|ブレークダウン|長めのブレイク|長いブレイク|大きいブレイク|大きなブレイク|ドラムを?抜/],["bassonly",/ベースだけ|ベースのみ/],
   ["perconly",/パーカッションだけ|パーカスだけ|打楽器だけ|リズムだけ/],["kick",/キック抜|キックを抜|キックだけ抜/]];
+const LOG_MAX=20;
 const SUGGEST=["もっとハードに","少し暗く","一気に盛り上げて","ブレイク入れて","テープストップ","短いブレイク","トライバルに","落ち着かせて","おまかせ"];
 
 class Conductor{
   constructor(e){this.e=e;this.p={...PROFILE[e.low.style]};this.glide={};this.events=[];this.mix=null;this.queue=[];
     this.auto=false;this.hold=false;this.phraseCount=0;this.autoWait=2;this.autoWaitRange=[2,4];this.tempoBias=0;
-    this.r=mulberry32(e.seed^0xc0ffee);this.history=[];this.lastBreak=null;}
+    this.r=mulberry32(e.seed^0xc0ffee);this.lastBreak=null;
+    this.log=[];this.logVer=0;this.curSrc=null;this.groups={};this.gseq=0;this.curGid=null;}
+  // ---- 消化した予定 log: newest first, fixed length ----
+  logItem(text,src,status="done",bar=this.bar,t){const e=this.e,T=(t??(e.lastT!=null?e.lastT:e.nextTime))-(e.t0??0);
+    this.log.unshift({bar,t:Math.max(0,T),text,src:src||"自動",status});if(this.log.length>LOG_MAX)this.log.length=LOG_MAX;this.logVer++;}
+  note(msg){this.logItem(msg,this.curSrc);}
+  // parameter changes are grouped per request; the group is logged once all its glides have arrived
+  beginGroup(label,src){this.curGid=++this.gseq;this.groups[this.curGid]={label,src:src||this.curSrc,pending:new Set(),sup:false};return this.curGid;}
+  endGroup(){const g=this.groups[this.curGid];if(g&&!g.pending.size)delete this.groups[this.curGid];this.curGid=null;}
+  checkGroup(gid,bar,t){const g=this.groups[gid];if(!g||g.pending.size)return;delete this.groups[gid];
+    this.logItem(`${g.label||"雰囲気の変化"}：到達${g.sup?"（一部は後の指示で上書き）":""}`,g.src,"done",bar,t);}
   // choose a break that fits the current energy / style; never the same type twice in a row
   pickBreak(o={}){const r=this.r,en=this.target("energy"),aff=BREAK_AFFINITY[this.e.low.style]||{};
     let c=BREAK_ORDER.filter(k=>{const B=BREAKS[k];return en>=B.energy[0]-0.05&&en<=B.energy[1]+0.05;});
@@ -805,17 +788,21 @@ class Conductor{
   // tempo bias: glide the current style's tempo; if a mix has already started, just retarget its pitch-ride
   retempo(bar){const e=this.e,M=this.mix;
     if(M&&M.state!=="planned"&&e.bpmGlide){e.bpmGlide.to=STYLES[M.to].bpm+this.tempoBias;return;}
-    e.bpmGlide={from:e.bpm,to:STYLES[e.low.style].bpm+this.tempoBias,b0:bar+1,bars:8};}
-  setParam(k,val,bars,startBar){this.glide[k]={from:null,to:clamp01(val),b0:startBar,bars:Math.max(1,bars)};}
-  addEvent(ev){this.events.push(ev);this.events.sort((a,b)=>a.bar-b.bar);}
-  note(msg){this.history.unshift({bar:this.bar,msg});if(this.history.length>8)this.history.pop();}
+    if(e.bpmGlide&&e.bpmGlide.label)this.logItem(e.bpmGlide.label,e.bpmGlide.src,"cancel");
+    const to=STYLES[e.low.style].bpm+this.tempoBias;e.bpmGlide={from:e.bpm,to,b0:bar+1,bars:8,label:`テンポ ${to.toFixed(0)} BPM`,src:this.curSrc};}
+  setParam(k,val,bars,startBar){const old=this.glide[k];
+    if(old&&old.gid&&old.gid!==this.curGid){const og=this.groups[old.gid];if(og){og.pending.delete(k);og.sup=true;this.checkGroup(old.gid,this.bar);}}
+    this.glide[k]={from:null,to:clamp01(val),b0:startBar,bars:Math.max(1,bars),gid:this.curGid};
+    const g=this.groups[this.curGid];if(g)g.pending.add(k);}
+  addEvent(ev){if(ev.src===undefined)ev.src=this.curSrc||"自動";this.events.push(ev);this.events.sort((a,b)=>a.bar-b.bar);}
 
   onBar(bar,t){
     for(const k of Object.keys(this.glide)){const g=this.glide[k];if(bar<g.b0)continue;if(g.from===null)g.from=this.p[k];
-      const f=Math.min(1,(bar-g.b0+1)/g.bars);this.p[k]=g.from+(g.to-g.from)*f;if(f>=1)delete this.glide[k];}
+      const f=Math.min(1,(bar-g.b0+1)/g.bars);this.p[k]=g.from+(g.to-g.from)*f;
+      if(f>=1){delete this.glide[k];const G=this.groups[g.gid];if(G){G.pending.delete(k);this.checkGroup(g.gid,bar,t);}}}
     const due=this.events.filter(x=>x.bar<=bar);this.events=this.events.filter(x=>x.bar>bar);
     for(const ev of due)this.run(ev,t,bar);
-    if(!this.mix&&this.queue.length){const q=this.queue.shift();this.planMix(q.style,bar,q.opts);}
+    if(!this.mix&&this.queue.length){const q=this.queue.shift();this.curSrc=q.src;this.planMix(q.style,bar,q.opts);this.curSrc=null;}
     if(this.auto&&!this.hold&&bar>0&&bar%16===0)this.autopilot(bar);
   }
 
@@ -834,7 +821,7 @@ class Conductor{
     return this.mix;}
   requestStyle(style,o,labels){
     if(style===this.finalStyle()){labels.push(`既に${this.ja(style)}${this.mix?"へ移行中":""}です`);return;}
-    if(this.mix||this.queue.length){this.queue.push({style,opts:o});labels.push(`現在のミックス完了後に${this.ja(style)}へ移行`);return;}
+    if(this.mix||this.queue.length){this.queue.push({style,opts:o,src:this.curSrc});labels.push(`現在のミックス完了後に${this.ja(style)}へ移行`);return;}
     const M=this.planMix(style,this.bar,o);
     labels.push(`${M.m-this.bar}小節後から${M.L}小節かけて${this.ja(style)}へミックス`);}
   planBreak(bar,len,labels,grid,type,o={}){
@@ -861,40 +848,50 @@ class Conductor{
         const ue=e.upEnv[M.to],he=e.upHpEnv[M.to];ue.hold(t);ue.lin(UPMIX[M.to].lvl,t+bd*M.L/2);
         he.hold(t);he.set(1600,t);he.exp(20,t+bd*M.L/2);
         e.bpmGlide={from:e.bpm,to:STYLES[M.to].bpm+this.tempoBias,b0:bar+1,bars:Math.max(6,Math.round(M.L*0.75))}; // pitch-ride across most of the mix
+        if(e.bpmGlide&&e.bpmGlide.label)this.logItem(e.bpmGlide.label+"（ミックスのテンポ移行に統合）",e.bpmGlide.src,"cancel",bar,t);
+        this.beginGroup(`${this.ja(M.to)}の雰囲気へ移行`,ev.src);
         for(const k of Object.keys(PROFILE[M.to]))this.setParam(k,this.target(k)+(PROFILE[M.to][k]-this.target(k))*0.7,M.L,bar);
-        this.note(`${this.ja(M.from)} → ${this.ja(M.to)} ミックス開始`);break;}
+        this.endGroup();break;}
       case "upOut":{if(!M)break;const ue=e.upEnv[M.from],he=e.upHpEnv[M.from];
         he.hold(t);he.exp(2600,t+bd*M.L/2);ue.hold(t);ue.lin(0,t+bd*M.L/2);break;}
-      case "drop":case "break":if(!e.drop.active){e.dropStart(t,"auto",ev.len,ev.btype||"kick");this.note(`${BREAKS[ev.btype||"kick"].ja}（${ev.len}小節）`);}break;
+      case "drop":case "break":if(!e.drop.active){e.dropStart(t,"auto",ev.len,ev.btype||"kick");e.drop.meta={src:ev.src};}
+        else this.logItem(`${BREAKS[ev.btype||"kick"].ja}（別のブレイク中のためスキップ）`,ev.src,"cancel",bar,t);return;
       case "swap":{if(!M||!M.deckB)break;e.low=M.deckB;M.state="swapped";
         M.deckA.topEnv.hold(t);M.deckA.topEnv.lin(0,t+bd*M.L/4);M.deckB.topEnv.hold(t);M.deckB.topEnv.lin(1,t+bd*2);
         e.trimEnv.hold(t);e.trimEnv.lin(Math.pow(10,STYLE_TRIM_DB[M.to]/20),t+bd*2);
-        if(!M.dropLen&&S.crash&&this.p.energy>0.45)e.crash(t);
-        this.note(`キック＋ベースを${this.ja(M.to)}に交換`);break;}
+        if(!M.dropLen&&S.crash&&this.p.energy>0.45)e.crash(t);break;}
       case "mixEnd":{if(!M)break;const A=M.deckA;e.decks=e.decks.filter(d=>d!==A);e.disposeDeck(A,t);
         e.upHpEnv[M.from].hold(t);e.upHpEnv[M.from].exp(20,t+0.5);
-        this.note(`${this.ja(M.to)}へのミックス完了`);this.mix=null;break;}
-      case "peakHit":this.setParam("tension",0.25,8,bar);this.note("ピーク");break;
-    }}
+        this.mix=null;break;}
+      case "peakHit":this.beginGroup("ピーク後に緊張感を解放",ev.src);this.setParam("tension",0.25,8,bar);this.endGroup();break;
+    }
+    this.logItem(ev.done||ev.label,ev.src,"done",bar,t);}
 
   autopilot(bar){if(this.mix||this.queue.length)return;
-    const r=this.r;this.phraseCount++;
+    this.curSrc="おまかせ";try{this.autopilotStep(bar);}finally{this.curSrc=null;this.curGid=null;}}
+  autopilotStep(bar){const r=this.r;this.phraseCount++;
     if(this.phraseCount>=this.autoWait){
       const W=JOURNEY[this.e.low.style];let x=r()*Object.values(W).reduce((a,b)=>a+b,0),pick="minimal";
       for(const [k,w] of Object.entries(W)){x-=w;if(x<=0){pick=k;break;}}
       const L=r()<0.5?16:32,dl=L===32&&r()<0.3?8:(this.p.energy>0.55?2:(r()<0.6?1:0));
       this.planMix(pick,bar,{len:L,gap:1,dropLen:dl});
-      this.note(`おまかせ：次は${this.ja(pick)}（${L}小節ミックス）`);
+      this.note(`判断：次は${this.ja(pick)}へ（${L}小節ミックスを計画）`);
       this.phraseCount=0;this.autoWait=this.autoWaitRange[0]+Math.floor(r()*(this.autoWaitRange[1]-this.autoWaitRange[0]+1));
     }else{
-      const ph=bar/16;
+      const ph=bar/16;this.beginGroup("フレーズごとの雰囲気のゆらぎ");
       this.setParam("energy",this.p.energy+(Math.sin(ph*0.9)*0.15+(r()-0.5)*0.15),16,bar);
-      this.setParam("dark",this.p.dark+(r()-0.5)*0.2,16,bar);this.setParam("density",this.p.density+(r()-0.5)*0.2,16,bar);
+      this.setParam("dark",this.p.dark+(r()-0.5)*0.2,16,bar);this.setParam("density",this.p.density+(r()-0.5)*0.2,16,bar);this.endGroup();
       if(r()<0.4){const ls=[];this.planBreak(bar,null,ls,null,null,{});}
     }}
 
   // ---- free-text (Japanese) intent parser: rule-based keywords + intensity words ----
-  intent(text){
+  intent(text){this.curSrc=`「${text}」`;this.beginGroup(null);
+    try{const res=this._intent(text);const g=this.groups[this.curGid];
+      if(g)g.label=(res.labels.join(" ").match(/[^\s・：（）]+?[↑↓]+/g)||[]).join(" ")||"雰囲気の変化";
+      if(res.ok&&res.labels.length&&!res.planned&&!(g&&g.pending.size))this.logItem(res.labels.join(" ・ "),this.curSrc);
+      return res;}
+    finally{this.endGroup();this.curSrc=null;}}
+  _intent(text){
     const tx=String(text).normalize("NFKC").toLowerCase(),bar=this.bar,labels=[];let k=1,fast=false,slow=false,hit=false;
     if(/少し|ちょっと|やや|ちょい|わずか|軽く|気持ち/.test(tx)){k=0.5;slow=true;}
     if(/かなり|すごく|めっちゃ|とても|超|思いっきり|思い切り|がっつり|ガッツリ|最大|全開/.test(tx))k=1.6;
@@ -907,10 +904,18 @@ class Conductor{
     let t2=tx.replace(/ハードグル[ーｰ]?[ヴブ]/g,"グルーヴ");
     if(/(おまかせ|お任せ|自動|オート).*(やめ|オフ|解除|止め|終わ)|手動に/.test(t2)){this.auto=false;labels.push("おまかせ オフ");hit=true;t2=t2.replace(/おまかせ|お任せ|自動|オート/g,"");}
     else if(/おまかせ|お任せ|任せ|自動|オート|djして|勝手に/.test(t2)){this.auto=true;this.hold=false;labels.push("おまかせ オン（数フレーズごとに自動でスタイル移行）");hit=true;}
-    if(/このまま|キープ|維持|ずっと|固定|変えないで/.test(t2)){this.hold=true;this.auto=false;this.glide={};this.queue=[];
-      if(this.mix&&this.mix.state==="planned")this.mix=null;           // not started yet -> cancel
-      this.events=this.events.filter(e=>this.mix&&["mixStart","upOut","drop","swap","mixEnd"].includes(e.type));
-      labels.push("ホールド：今の状態をキープ（進行中のミックスのみ完了させる）");return {ok:true,labels,hold:true};}
+    if(/このまま|キープ|維持|ずっと|固定|変えないで/.test(t2)){this.hold=true;this.auto=false;
+      for(const [gid,g] of Object.entries(this.groups))if(g.pending.size&&+gid!==this.curGid)this.logItem(`${g.label||"雰囲気の変化"}（途中で固定）`,g.src,"cancel");
+      this.groups={};this.glide={};
+      for(const q of this.queue)this.logItem(`${this.ja(q.style)}へのミックス（待機中）`,q.src,"cancel");this.queue=[];
+      const MIXEV=["mixStart","upOut","drop","swap","mixEnd"];let cm=null;
+      if(this.mix&&this.mix.state==="planned"){cm=this.mix;this.mix=null;}           // not started yet -> cancel
+      const keep=e=>this.mix&&MIXEV.includes(e.type);
+      if(cm)this.logItem(`${this.ja(cm.from)} → ${this.ja(cm.to)} のミックス計画（${cm.L}小節${cm.breakType?"・"+BREAKS[cm.breakType].ja:""}）`,(this.events.find(e=>e.type==="mixStart")||{}).src,"cancel");
+      for(const ev of this.events)if(!keep(ev)&&!(cm&&MIXEV.includes(ev.type)))this.logItem(ev.label,ev.src,"cancel");
+      this.events=this.events.filter(keep);
+      this.logItem("ホールド開始：今の状態をキープ",this.curSrc);
+      labels.push("ホールド：今の状態をキープ（進行中のミックスのみ完了させる）");return {ok:true,labels,hold:true,planned:true};}
     this.hold=false;
     if(/テンポ.*(上|速|早|アップ)|速く|早く/.test(t2)){this.tempoBias+=3*k;this.retempo(bar);labels.push(`テンポ↑（+${(3*k).toFixed(0)} BPM を8小節かけて）`);hit=true;t2=t2.replace(/テンポ.*?(上げ|上|速|早|アップ)/,"");}
     else if(/テンポ.*(下|遅|ダウン)|遅く|ゆっくり/.test(t2)){this.tempoBias-=3*k;this.retempo(bar);labels.push(`テンポ↓（-${(3*k).toFixed(0)} BPM を8小節かけて）`);hit=true;t2=t2.replace(/テンポ.*?(下げ|下|遅|ダウン)/,"");}
@@ -939,8 +944,7 @@ class Conductor{
     if(!hit)return {ok:false,labels:[],suggest:SUGGEST};
     const speed=fast?"一気に":(slow?"少しずつ":"");
     if(labels.some(l=>/[↑↓]/.test(l))&&!/ピーク/.test(labels.join("")))labels.push(`${speed}${fast?"次の小節から":"次の4小節境界から"}${gb}小節かけて変化`);
-    this.note("意図：「"+text+"」");
-    return {ok:true,labels};}
+    return {ok:true,labels,planned:this.events.some(e=>e.src===this.curSrc)||this.queue.some(q=>q.src===this.curSrc)||!!(this.e.bpmGlide&&this.e.bpmGlide.src===this.curSrc)};}
 }
 
 // ---------- Live transport (worker-tick lookahead scheduler) ----------
@@ -964,7 +968,6 @@ async function start(){
   const seed=(Math.random()*4294967296)>>>0;
   S.style="minimal";
   eng=new Engine(ctx,seed);eng.onStep=queueViz;eng.cond.auto=autoWanted;
-  $("seedinfo").textContent="シード："+seed;
   eng.nextTime=ctx.currentTime+0.06;
   if(!ticker) ticker=makeTicker(tick);
   playing=true;ticker.start();tick();setPlayUI(true);
@@ -984,7 +987,12 @@ const cv=$("viz"),g2=cv.getContext("2d");
 const COL={kick:"#e05d5d",hat:"#f6ad55",clap:"#b794f4",perc:"#68d391",bass:"#4fd1c5",stab:"#63b3ed"};
 const METERS=["energy","dark","density","swing","tension","space"];
 $("meters").innerHTML=METERS.map(k=>`<span>${PARAM_JA[k]}</span><div class="meter" id="m-${k}"><i></i><b></b></div>`).join("");
-let lastPanel=0;
+let lastPanel=0,shownLogVer=-1;
+const esc=x=>String(x).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const mmss=t=>`${String(Math.floor(t/60)).padStart(2,"0")}:${String(Math.floor(t%60)).padStart(2,"0")}`;
+function renderLog(log){$("logcount").textContent=log.length?`直近${log.length}件（最大${LOG_MAX}）`:"";
+  $("log").innerHTML=log.length?log.map(x=>`<li class="${x.status==="cancel"?"cx":""}"><span class="lb">${x.bar+1}小節 <i>F${Math.floor(x.bar/16)+1}-${x.bar%16+1}</i></span><span class="lt">${mmss(x.t)}</span><span class="ld">${x.status==="cancel"?"<b>取消</b>":""}${esc(x.text)}<em>${esc(x.src)}</em></span></li>`).join("")
+    :`<li class="empty">まだありません（スタートすると、終わった予定がここに残ります）</li>`;}
 function updatePanel(){
   if(!eng){$("phrase").textContent="フレーズ —";$("timeline").innerHTML="<li><span>—</span><span>スタートすると予定が表示されます</span></li>";return;}
   const C=eng.cond,M=C.mix,b=vizBar;
@@ -1005,7 +1013,7 @@ function updatePanel(){
   if(C.queue.length)items.push(...C.queue.map(q=>`<li><span>その後</span><span>${STYLES[q.style].ja}へミックス</span></li>`));
   if(C.auto&&!items.length)items.push(`<li><span>おまかせ</span><span>次のフレーズ境界で流れを判断</span></li>`);
   $("timeline").innerHTML=items.length?items.join(""):`<li><span>—</span><span>${C.hold?"ホールド中：このままキープ":"予定なし（意図を送ると計画されます）"}</span></li>`;
-  $("history").textContent=C.history.slice(0,3).map(h=>`[${h.bar+1}] ${h.msg}`).join(" ／ ");
+  if(C.logVer!==shownLogVer){shownLogVer=C.logVer;renderLog(C.log);}
   $("holdinfo").textContent=C.hold?"ホールド中":(C.auto?"おまかせ中":"");
   $("auto").textContent="おまかせ："+(C.auto?"オン":"オフ");$("auto").classList.toggle("on",C.auto);
 }
@@ -1020,10 +1028,10 @@ function draw(){
   g2.fillStyle="#0b0c0f";g2.fillRect(0,0,W,H);g2.textBaseline="middle";g2.font="24px system-ui,sans-serif";
   if(playing&&vizBrk){g2.fillStyle=vizDrop?"rgba(224,93,93,0.18)":"rgba(246,173,85,0.16)";g2.fillRect(0,0,W,top-6);g2.fillStyle=vizDrop?"#ff8a8a":"#f6c27a";g2.fillText("● ブレイク中 — "+vizDropInfo+(vizFill?"  ／ フィル":""),14,top/2-2);}
   else{g2.fillStyle="#56606b";g2.fillText(playing?("デッキ："+vizDecks.map(d=>STYLES[d].ja).join(" ＋ ")):"停止中",14,top/2-2);}
-  PARTS.forEach((p,i)=>{const y=top+i*rh;g2.fillStyle=S.mute[p]?"#444":"#9aa3ad";g2.fillText(PART_JA[p],14,y+rh/2);
+  PARTS.forEach((p,i)=>{const y=top+i*rh;g2.fillStyle="#9aa3ad";g2.fillText(PART_JA[p],14,y+rh/2);
     for(let s=0;s<16;s++){const x=lw+s*cw,v=vizGrid[i][s];
       g2.fillStyle=s%4===0?"#1d2026":"#15171b";g2.fillRect(x+3,y+4,cw-6,rh-8);
-      if(v&&!S.mute[p]){g2.globalAlpha=0.35+0.65*Math.min(1,v)*(s===vizStep?1:0.55);g2.fillStyle=COL[p];g2.fillRect(x+3,y+4,cw-6,rh-8);g2.globalAlpha=1;}}
+      if(v){g2.globalAlpha=0.35+0.65*Math.min(1,v)*(s===vizStep?1:0.55);g2.fillStyle=COL[p];g2.fillRect(x+3,y+4,cw-6,rh-8);g2.globalAlpha=1;}}
     if(p==="kick"&&playing&&vizDrop){g2.strokeStyle="#e05d5d";g2.setLineDash([10,8]);g2.lineWidth=2;g2.strokeRect(lw+3,y+4,16*cw-6,rh-8);g2.setLineDash([]);}});
   if(vizStep>=0&&playing){g2.strokeStyle="#fff";g2.lineWidth=3;g2.strokeRect(lw+vizStep*cw+2,top,cw-4,H-top-6);}
 }
@@ -1038,13 +1046,9 @@ $("intents").addEventListener("click",e=>{const b=e.target.closest("button");if(
 const QUICK_BRK=["おまかせ",...BREAK_ORDER];
 $("breaks").insertAdjacentHTML("beforeend",QUICK_BRK.map(k=>`<button data-brk="${k}" title="${k==="おまかせ"?"今の雰囲気に合うブレイクを選ぶ":BREAKS[k].desc}">${k==="おまかせ"?"おまかせ":BREAKS[k].ja}</button>`).join(""));
 function planBreakUI(type,len){if(!eng){pendingIntents.push(type==="おまかせ"?"ブレイク入れて":BREAKS[type].ja);$("interp").textContent="スタート後に反映します";return null;}
-  const labels=[],C=eng.cond;C.hold=false;const r=C.planBreak(C.bar,len||null,labels,null,type==="おまかせ"?null:type,{});
-  showInterp({ok:true,labels},"");updatePanel();return r;}
+  const labels=[],C=eng.cond;C.hold=false;C.curSrc=`ボタン「${type==="おまかせ"?"おまかせ":BREAKS[type].ja}」`;const r=C.planBreak(C.bar,len||null,labels,null,type==="おまかせ"?null:type,{});
+  C.curSrc=null;showInterp({ok:true,labels},"");updatePanel();return r;}
 $("breaks").addEventListener("click",e=>{const b=e.target.closest("button");if(b)planBreakUI(b.dataset.brk,0);});
-$("brktype").innerHTML=QUICK_BRK.map(k=>`<option value="${k}">${k==="おまかせ"?"おまかせ（雰囲気に合わせて）":BREAKS[k].ja+"（"+BREAKS[k].len.filter((x,i,a)=>a.indexOf(x)===i).join("〜")+"小節）"}</option>`).join("");
-const brkDesc=()=>{const k=$("brktype").value;$("brkdesc").textContent=k==="おまかせ"?"エネルギーとスタイルに合う種類を選び、直前と同じ種類は避けます":BREAKS[k].desc;};
-$("brktype").addEventListener("change",brkDesc);brkDesc();
-$("gobrk").addEventListener("click",()=>planBreakUI($("brktype").value,+$("brklen").value));
 function showInterp(res,text){const el=$("interp");$("suggest").innerHTML="";
   if(res.ok){el.classList.remove("bad");el.textContent="解釈："+res.labels.join(" ・ ");}
   else{el.classList.add("bad");el.textContent=`「${text}」はうまく読み取れませんでした。こんな言い方を試してみてください：`;
@@ -1056,32 +1060,14 @@ function sendIntent(text){text=String(text||"").trim();if(!text)return;
 $("send").addEventListener("click",()=>{sendIntent($("say").value);$("say").value="";});
 $("say").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing){sendIntent($("say").value);$("say").value="";}});
 $("auto").addEventListener("click",()=>{if(eng){sendIntent(eng.cond.auto?"おまかせやめて":"おまかせ");}else{autoWanted=!autoWanted;$("auto").textContent="おまかせ："+(autoWanted?"オン":"オフ");$("auto").classList.toggle("on",autoWanted);}});
-$("gostyle").addEventListener("click",()=>{const st=$("style").value;if(!eng){pendingIntents.push(STYLES[st].ja+"に");return;}
-  const labels=[];eng.cond.hold=false;eng.cond.requestStyle(st,{len:16,grid:16,gap:2,dropLen:2},labels);showInterp({ok:true,labels},"");});
-KEYS.forEach((k,i)=>{const o=document.createElement("option");o.value=i;o.textContent=k+" マイナー";if(i===9)o.selected=true;$("key").appendChild(o);});
-$("key").addEventListener("change",e=>S.key=+e.target.value);
 function bind(id,key,fmt,after){const el=$(id);const upd=()=>{S[key]=+el.value;const v=$("v-"+id);if(v)v.textContent=fmt(S[key]);if(after)after();};el.addEventListener("input",upd);upd();}
-const pct=v=>Math.round(v*100)+"%";
-bind("cutoff","cutoff",v=>cutoffHz(v)+" Hz");
-bind("dmix","dmix",pct,()=>eng&&eng.applyParams());
-bind("dfb","dfb",pct,()=>eng&&eng.applyParams());
-bind("var","variation",pct);
-bind("vol","vol",pct,()=>eng&&eng.applyParams());
-$("sweep").addEventListener("change",e=>S.sweep=e.target.checked);
-PARTS.forEach(p=>{const b=document.createElement("button");b.className="mute";b.textContent=PART_JA[p];b.dataset.part=p;
-  b.addEventListener("click",()=>{S.mute[p]=!S.mute[p];b.classList.toggle("off",S.mute[p]);if(eng)eng.applyParams();});$("mutes").appendChild(b);});
+bind("vol","vol",v=>v,()=>eng&&eng.applyParams());
 let dropDownAt=0,dropArmedByThisPress=false;
 function setDrop(on){S.dropManual=on;$("drop").classList.toggle("on",on);$("drop").textContent=on?"キック抜き中…（K）":"キック抜き（K）";}
 function dropDown(){if(S.dropManual){setDrop(false);dropArmedByThisPress=false;}else{setDrop(true);dropArmedByThisPress=true;dropDownAt=performance.now();}}
 function dropUp(){if(dropArmedByThisPress&&performance.now()-dropDownAt>350)setDrop(false);dropArmedByThisPress=false;}
 $("drop").addEventListener("pointerdown",e=>{e.preventDefault();dropDown();});
 $("drop").addEventListener("pointerup",dropUp);$("drop").addEventListener("pointerleave",()=>{if(dropArmedByThisPress)dropUp();});
-$("fill").addEventListener("change",e=>S.fill=e.target.checked);
-$("riser").addEventListener("change",e=>S.riser=e.target.checked);
-$("crash").addEventListener("change",e=>S.crash=e.target.checked);
-$("autodrop").addEventListener("change",e=>S.autoDrop=e.target.checked);
-$("autoevery").addEventListener("change",e=>S.autoEvery=+e.target.value);
-$("autolen").addEventListener("change",e=>S.autoLen=e.target.value);
 document.addEventListener("keydown",e=>{if(e.target.tagName==="INPUT"&&e.target.type==="text")return;
   if(e.code==="Space"){e.preventDefault();$("play").click();}
   else if(e.code==="KeyK"&&!e.repeat){e.preventDefault();dropDown();}});
@@ -1121,7 +1107,7 @@ window.__renderOffline=async function(o){
     return {seconds:+end.toFixed(1),peakDb:+(20*Math.log10(pk)).toFixed(2),rmsDb:+(10*Math.log10(ss/(2*n))).toFixed(2),nan,
       kicks:kl.length,minKickGap:+minGap.toFixed(4),kicksFromTwoDecksNear:diffDeckNear,bassNotes:bl.length,bassTwoDecksNear:bassDiffNear,bassOldDeckAfterSwap:bassOldAfterSwap,
       swaps:swaps.map(x=>+x[0].toFixed(2)),maxBpmStepPerBar:+maxBpmStep.toFixed(3),
-      bpmPath:e.bpmLog.filter((x,i)=>i%4===0).map(x=>`${x[0]}:${x[1].toFixed(1)}:${x[3]}`).join(" "),segs,breaks:e.breakLog.map(x=>`${x.type}@${x.bar}x${x.len}`),intents:res,history:e.cond.history.slice().reverse().map(h=>`[${h.bar}] ${h.msg}`)};
+      bpmPath:e.bpmLog.filter((x,i)=>i%4===0).map(x=>`${x[0]}:${x[1].toFixed(1)}:${x[3]}`).join(" "),segs,breaks:e.breakLog.map(x=>`${x.type}@${x.bar}x${x.len}`),intents:res,log:e.cond.log.slice().reverse().map(x=>`[${x.bar}] ${x.status==="cancel"?"取消 ":""}${x.text} ← ${x.src}`)};
   }finally{Object.assign(S,JSON.parse(saved));}
 };
 </script>

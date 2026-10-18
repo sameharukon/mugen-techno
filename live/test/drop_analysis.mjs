@@ -3,9 +3,11 @@ const files = process.argv.slice(2);
 const b = await chromium.launch({ executablePath:'/usr/bin/google-chrome', args:['--no-sandbox'] });
 async function harness(cfg){
   const sr=44100, bars=cfg.bars, secs=bars*16*60/cfg.bpm/4+1.5;
-  const saved=JSON.stringify(S); Object.assign(S,{style:cfg.style,bpm:cfg.bpm,autoDrop:cfg.auto,autoEvery:16,autoLen:'2',crash:cfg.crash,riser:true,fill:true,dropManual:false});
+  const saved=JSON.stringify(S); Object.assign(S,{style:cfg.style,crash:cfg.crash,riser:true,fill:true,dropManual:false});
   const oc=new OfflineAudioContext(4,Math.ceil(sr*secs),sr);
   const e=new Engine(oc,cfg.seed>>>0);
+  // kick drops are now planned by the conductor (2 bars before every 16-bar phrase end), no panel auto-drop any more
+  if(cfg.auto)for(let b0=14;b0<bars;b0+=16)e.cond.addEvent({bar:b0,type:"break",len:2,btype:"kick",label:"test"});
   const probes=!!e.hpCtl;
   if(probes){const m=oc.createChannelMerger(4);e.hpCtl.connect(m,0,2);e.lvlCtl.connect(m,0,3);m.connect(oc.destination);}
   const rets=[],norms=[],starts=[];let prevDrop=false;

@@ -23,9 +23,8 @@ await waitDone(6,120000); await st('batch1 done');
 // batch 2: free text names
 for (const t of ['ハーフタイムにして','ハイパスビルドで溜めて','ベースだけにして','パーカッションだけ','短いブレイク']) await say(t);
 await waitDone(11,160000); await st('batch2 done');
-// 詳細設定 picker + breakdown via text, then a mix with tape stop at the swap
-await p.evaluate(()=>document.getElementById('adv').open=true);
-await p.selectOption('#brktype','breakdown'); await p.selectOption('#brklen','8'); await p.click('#gobrk'); console.log('picker ->', await p.textContent('#interp'), '|', await p.textContent('#brkdesc'));
+// breakdown via quick button, then a mix with tape stop at the swap
+await chip('breakdown');
 await waitDone(12,60000); await st('breakdown done');
 await say('一気にハードに'); await st('mix planned');
 await chip('tapestop'); // during a mix: either scheduled after or deferred to the swap break
@@ -36,7 +35,7 @@ await p.waitForTimeout(40000); await st('auto');
 const res=await p.evaluate(()=>{const bt=__bars;const off=eng.returnTimes.map(r=>Math.min(...bt.map(x=>Math.abs(x-r))));
   return {breaks:eng.breakLog.map(x=>x.type+'@'+x.bar+'x'+x.len),types:[...new Set(eng.breakLog.map(x=>x.type))].length,
     returns:eng.returnTimes.length,maxReturnOffFromDownbeatUs:+(Math.max(...off)*1e6).toFixed(3),minLead:+eng.minLead.toFixed(4),
-    consecutiveSameAuto:eng.breakLog.slice(1).filter((x,i)=>x.type===eng.breakLog[i].type).length,history:eng.cond.history.map(h=>h.msg)};});
+    consecutiveSameAuto:eng.breakLog.slice(1).filter((x,i)=>x.type===eng.breakLog[i].type).length,log:eng.cond.log.map(x=>x.bar+':'+(x.status==='cancel'?'取消 ':'')+x.text+' ← '+x.src)};});
 console.log('RESULT', JSON.stringify(res));
 await p.screenshot({path:'/workspace/techno/live/test/screenshot.png', fullPage:true});
 console.log('errors/warnings:', errs); await b.close();
