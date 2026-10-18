@@ -9,7 +9,8 @@
 - **Space**: スタート / 停止
 - **K**: キック抜き（キックドロップ）。ボタン「キック抜き（K）」と同じ
 - **意図ボタン**: 盛り上げて、もっとハードに、落ち着かせて、暗く、明るく、グルーヴを出して、トライバルに、ミニマルに戻して、ブレイク入れて、ピークを作って、ずっとこのまま、ブレイクビート風に
-- **自由入力**: 入力欄に「少し暗くして一気に盛り上げて」「トライバルに」「ブレイク入れて」のように書いて Enter（または「送る」）
+- **ブレイク**: 意図ボタンの下に種類のボタンが並びます。「おまかせ」か、下の 11 種類から直接選べます。詳細設定の「ブレイクを選んで入れる」でも種類と長さを指定できます
+- **自由入力**: 入力欄に「少し暗くして一気に盛り上げて」「トライバルに」「ブレイク入れて」「テープストップ」のように書いて Enter（または「送る」）
 - **おまかせ**: 「おまかせ」ボタン、または「おまかせ」と入力。数フレーズごとにスタイルを自動で移す。やめるときはもう一度押すか「おまかせやめて」
 - **詳細設定**: 画面下のパネル。パートミュート、スタイルの直接指定、キー、フィルター、ディレイ、バリエーション、キック抜きの演出、定期的な自動抜き
 
@@ -17,18 +18,45 @@
 
 ![ライブ画面](live/test/screenshot.png)
 
+## ブレイク（11 種類）
+
+「ブレイク入れて」は種類を指定しません。今のエネルギーとスタイルに合うものを自動で選び、直前と同じ種類は避けます。「短いブレイク」「長めのブレイク」のように長さの言い方も使えます。種類名はそのまま自由入力できます（例: テープストップ、エコーアウト、ハーフタイム、サイレンス）。
+
+| 種類 | 内容 |
+| --- | --- |
+| キック抜き | キックだけ抜いてライザーで溜める |
+| フルブレイクダウン | ドラムとベースが抜け、上モノとパッドだけ。最後の 2 小節でスネアロールとライザー |
+| フィルターブレイク | マスターのローパスでこもらせ、最後の 1 拍で開く |
+| ハイパスビルド | ハイパスで全体を細くし、最後の小節はキックとベースを抜く |
+| ベースだけ | キックとベースだけを残す |
+| パーカッションだけ | ハット、クラップ、パーカッションだけを残す |
+| テープストップ | 後半 2 拍でピッチダウンして止まり、次の 1 拍目で再始動 |
+| スタッター | 後半 2 拍を 8 分、16 分、32 分で連打する |
+| エコーアウト | ドライを切ってダブ・ディレイの残響だけを残す |
+| ハーフタイム | キックは 1 拍目、スネアは 3 拍目。ベースも半分の速さ |
+| サイレンス | 最後の 1 拍だけほぼ無音にしてドロップ |
+
+![ブレイク中](live/test/screenshot_break.png)
+
 ## テスト（`live/test/`）
 
-Playwright で `live/index.html` を開く Node テストです。`smoke5.mjs` は操作の通し、`shot.mjs` はスクリーンショット、`dj_offline.mjs` は意図をスクリプトしたオフラインレンダー、`drop_analysis.mjs` はキック抜きの解析です。
+Playwright で `live/index.html` を開く Node テストです。`smoke5.mjs` は操作の通し、`shot.mjs` はスクリーンショット、`dj_offline.mjs` は意図をスクリプトしたオフラインレンダー、`drop_analysis.mjs` はキック抜きの解析です。ブレイク用に次を追加しています。
+
+- `smoke6_breaks.mjs` — 全種類をボタン、詳細設定、自由入力で通し、ミックス中の指定も見る。スクリーンショットは `screenshot_break.png`
+- `intent_breaks.mjs` — 「ブレイク入れて」や種類名の自由入力が、どのブレイクになるかの対応
+- `break_analysis.mjs` — 各ブレイクをオフラインでレンダーし、ピーク、復帰のダウンビート、プローブの連続性を見る
 
 ```bash
 cd live/test
 npm install
 npx playwright install chromium
 node smoke5.mjs
+node smoke6_breaks.mjs
+node intent_breaks.mjs
+node break_analysis.mjs
 node shot.mjs
 node dj_offline.mjs          # 短縮は node dj_offline.mjs quick
 node drop_analysis.mjs /path/to/live/index.html
 ```
 
-各スクリプトはページを `file:///workspace/techno/live/index.html` として開き、Chrome を `/usr/bin/google-chrome` から起動します。`smoke5.mjs` と `shot.mjs` はスクリーンショットを `live/test/screenshot.png` に上書きします。
+各スクリプトはページを `file:///workspace/techno/live/index.html` として開き、Chrome を `/usr/bin/google-chrome` から起動します。`break_analysis.mjs` は引数で HTML のパスを渡せます。`smoke5.mjs` と `shot.mjs` は `live/test/screenshot.png` を、`smoke6_breaks.mjs` は `live/test/screenshot_break.png` を上書きします。
