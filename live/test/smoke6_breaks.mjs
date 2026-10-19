@@ -5,7 +5,7 @@ const b = await chromium.launch({ executablePath:'/usr/bin/google-chrome', args:
 const p = await b.newPage({viewport:{width:1080,height:1300}}); const errs=[];
 p.on('console', m => { if (m.type()==='error'||m.type()==='warning') errs.push(m.type()+': '+m.text()); });
 p.on('pageerror', e => errs.push('pageerror: '+e.message));
-await p.goto('file:///workspace/techno/live/index.html'); await p.waitForTimeout(300);
+await p.goto('file:///workspace/techno/live/index.html?noopening'); await p.waitForTimeout(300);
 console.log('quick buttons:', (await p.locator('#breaks button').allTextContents()).join(','));
 await p.click('[data-brk="tapestop"]'); console.log('pre-start chip ->', await p.textContent('#interp'));
 await p.click('#play'); await p.waitForTimeout(600);

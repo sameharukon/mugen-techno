@@ -3,7 +3,7 @@ const b = await chromium.launch({ executablePath:'/usr/bin/google-chrome', args:
 const p = await b.newPage({viewport:{width:1080,height:1250}}); const errs=[];
 p.on('console', m => { if (m.type()==='error'||m.type()==='warning') errs.push(m.type()+': '+m.text()); });
 p.on('pageerror', e => errs.push('pageerror: '+e.message));
-await p.goto('file:///workspace/techno/live/index.html'); await p.waitForTimeout(300);
+await p.goto('file:///workspace/techno/live/index.html?noopening'); await p.waitForTimeout(300);
 console.log('removed panel present?', await p.locator('#adv').count(), await p.locator('#mutes').count(), await p.locator('#brktype').count());
 // intent before start
 await p.click('[data-intent="暗く"]'); console.log('pre-start:', await p.textContent('#interp'));
@@ -32,5 +32,5 @@ await p.click('[data-intent="ブレイク入れて"]'); console.log('break ->', 
 for (const t of ['グルーヴを出して','ミニマルに戻して','落ち着かせて','ブレイクビート風に']) { await p.click(`[data-intent="${t}"]`); console.log(t,'->',await p.textContent('#interp')); }
 await p.waitForTimeout(6000); await st('end');
 console.log('log:', (await p.locator('#log li').allTextContents()).slice(0,6).join(' | '));
-await p.click('#play'); await p.waitForTimeout(300); await p.click('#play'); await p.waitForTimeout(1500); await st('restart');
+await p.click('#play'); await p.waitForTimeout(300); await p.click('#play'); await p.waitForTimeout(300); await p.click('#play'); await p.waitForTimeout(1500); await st('restart');
 console.log('errors/warnings:', errs); await b.close();

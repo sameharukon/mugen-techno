@@ -5,7 +5,7 @@ const b = await chromium.launch({ executablePath:'/usr/bin/google-chrome', args:
 const p = await b.newPage({viewport:{width:1080,height:1080}}); const errs=[];
 p.on('console', m => { if (m.type()==='error'||m.type()==='warning') errs.push(m.type()+': '+m.text()); });
 p.on('pageerror', e => errs.push('pageerror: '+e.message));
-await p.goto('file:///workspace/techno/live/index.html'); await p.waitForTimeout(300);
+await p.goto('file:///workspace/techno/live/index.html?noopening'); await p.waitForTimeout(300);
 console.log('panel gone:', await p.locator('details,#adv,#mutes,#brktype,#key,#cutoff,#seedinfo,#autodrop').count()===0, '| key', await p.evaluate(()=>S.key));
 // (1) fast scheduler-only run
 const r1=await p.evaluate(()=>{const oc=new OfflineAudioContext(2,44100,44100),e=new Engine(oc,123),C=e.cond;let t=0.01;const snaps=[];
