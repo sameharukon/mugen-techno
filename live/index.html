@@ -159,9 +159,15 @@ const KICK_BAND={b120:{hard:{f0:185,drive:0.55,rumble:0.5,tau:0.19,len:0.7}},
   b160:{minimal:{f0:190,f1:50,sw:0.07,tau:0.15,click:0.4,len:0.3,drive:0.8,rumble:0.7,gab:0.2},
     groove:{f0:210,f1:52,sw:0.06,tau:0.13,click:0.5,len:0.28,drive:1,rumble:0.6,gab:0.35},
     tribal:{f0:180,f1:48,sw:0.08,tau:0.14,click:0.35,len:0.28,drive:0.8,rumble:0.5,gab:0.25},
-    broken:{f0:260,f1:53,sw:0.05,tau:0.22,click:0.5,len:0.3,drive:1,rumble:0.3,gab:0.8},
+    broken:{f0:250,f1:53,sw:0.05,tau:0.22,click:0.2,len:0.3,drive:1,rumble:0.3,gab:0.6},
     hard:{f0:330,f1:55,sw:0.045,tau:0.3,click:0.55,len:0.35,drive:1,rumble:0.15,gab:1}}};
-const kickParams=(st,band)=>({...KICK_BASE[st],...((KICK_BAND[band]||{})[st]||{})});
+// glue fields (all kicks carry them so kick morphs interpolate): tune = pull the tail pitch onto the key root (A1-ish), gabLp / gabPk = tone of the
+// hardcore-distortion path (lowpass Hz / 1.7 kHz peak dB), scBass = bass sidechain depth, scUp = 上モノ bus sidechain depth, room = kick send into the shared space
+const KICK_GLUE={tune:0,gabLp:6500,gabPk:3,scBass:0.6,scUp:0,room:0,kLvl:1};
+// クロスブリード (v12): tail tuned to the root (was ≈49–51 Hz against the A1/E1 off-beat bass → beating), less hardcore path / click / presence,
+// bass + 上モノ breathe with the kick, a touch of the shared room on the kick
+const KICK_GLUE_BAND={b160:{broken:{tune:1,gabLp:3200,gabPk:1,scBass:0.9,scUp:0.35,room:0.06,kLvl:0.8}}};
+const kickParams=(st,band)=>({...KICK_GLUE,...KICK_BASE[st],...((KICK_BAND[band]||{})[st]||{}),...((KICK_GLUE_BAND[band]||{})[st]||{})});
 const kickDist=(a,b)=>Math.abs(a.drive-b.drive)+Math.abs(a.rumble-b.rumble)+Math.abs(a.tau-b.tau)*4+Math.abs(a.f0-b.f0)/100+Math.abs((a.gab||0)-(b.gab||0));
 // 160: bass treatment per style. none = the kick tail / rumble is the bass (no extra low end, no mud); off = short off-beat notes only
 const BASS160={hard:"none",groove:"none",minimal:"none",tribal:"off",broken:"off"};
@@ -336,6 +342,8 @@ class Engine{
     this.lc={};for(const p of ["kick","bass"]){const f=c.createBiquadFilter();f.type="highpass";f.Q.value=0.7;f.frequency.value=12;
       this.bus[p].disconnect();this.bus[p].connect(f).connect(this.sum);this.lc[p]=new Env(f.frequency,12);}
     this.fillBus=c.createGain();this.fillBus.gain.value=1;this.fillBus.connect(this.sum);
+    // 上モノ sidechain pump (unity unless the kick asks for it: KICK_GLUE.scUp)
+    this.pumpUp=c.createGain();this.pumpUp.gain.value=1;this.bus.stab.disconnect();this.bus.stab.connect(this.pumpUp).connect(this.sum);
     this.riserBus=c.createGain();this.riserBus.connect(this.vol); // riser bypasses the master HPF
     // persistent riser voice: looped noise -> bandpass (freq from riserFreq) -> gain (level from riserLvl)
     this.riserSrc=c.createBufferSource();this.riserSrc.buffer=this.noise;this.riserSrc.loop=true;
@@ -427,7 +435,13 @@ class Engine{
   // kick timbre comes from this.kp (continuous; morphs during a mix): soft/hard saturation crossfade + rumble send
   kick(t,vel=1,ko={}){const c=this.ctx,P=this.kp,pm=ko.pm||1,len=ko.len?Math.min(P.len,ko.len):P.len,gab=P.gab||0;
     const o=c.createOscillator(),g=c.createGain();o.type="sine";
-    o.frequency.setValueAtTime(P.f0*pm,t);o.frequency.exponentialRampToValueAtTime(P.f1*pm,t+P.sw);o.frequency.setTargetAtTime(P.f1*pm-4,t+P.sw,0.1);
+    // tail pitch: f1 settles to f1-4; with tune>0 it is pulled so the settled tail sits on the key root (nearest octave of A, transposed with the key)
+    const tn=P.tune||0,rootHz=mtof(33+keyOff()),f1=tn>0.001?P.f1+(rootHz+3-P.f1)*tn:P.f1;
+    o.frequency.setValueAtTime(P.f0*pm,t);o.frequency.exponentialRampToValueAtTime(f1*pm,t+P.sw);o.frequency.setTargetAtTime(f1*pm-4,t+P.sw,0.1);
+    if(gab>0.001){this.kickGabLp.frequency.setValueAtTime(P.gabLp??6500,t);this.kickGabPk.gain.setValueAtTime(P.gabPk??3,t);}
+    if(this.kickRoom)this.kickRoom.gain.setValueAtTime((P.room||0)*Math.min(1,vel),t);
+    this.bus.kick.gain.setValueAtTime(P.kLvl??1,t);
+    if((P.scUp||0)>0.005){const u=this.pumpUp.gain,dep=1-P.scUp*Math.min(1,vel),bt=15*this.s16/4;u.cancelAndHoldAtTime(t);u.setTargetAtTime(dep,t,0.004);u.setTargetAtTime(1,t+0.03,bt*0.28);}
     g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vel,t+0.002);g.gain.setTargetAtTime(0,t+0.01,P.tau);
     const fo=this.fade(t+len,Math.min(25,len*300));o.connect(g).connect(fo);const extra=[fo];
     if(P.drive<0.999&&gab<0.999){const gs=c.createGain();gs.gain.value=(1-P.drive)*(1-gab);fo.connect(gs).connect(this.kickSat);extra.push(gs);}
@@ -441,7 +455,8 @@ class Engine{
     hp.type="highpass";hp.frequency.value=2000;ng.gain.setValueAtTime(P.click*vel,t);ng.gain.exponentialRampToValueAtTime(0.001,t+0.005);
     n.connect(hp).connect(ng).connect(this.bus.kick);this.free(n,hp,ng);
     // bass sidechain follows every kick that actually plays
-    const d=this.duck.gain,depth=1-0.6*Math.min(1,vel);d.setValueAtTime(1,t);d.linearRampToValueAtTime(depth,t+0.004);d.setTargetAtTime(1,t+0.03,0.07);
+    const scb=P.scBass??0.6,d=this.duck.gain,depth=1-scb*Math.min(1,vel);d.setValueAtTime(1,t);d.linearRampToValueAtTime(depth,t+0.004);
+    d.setTargetAtTime(1,t+0.03+(scb>0.6?(scb-0.6)*0.25:0),0.07);   // deeper sidechain also holds a little longer (クロスブリード: bass leaves the kick its sub, back by the off-beat)
     this.stats.kicks++;
   }
   // gradual kick morph: rumble arrives early / leaves late, saturation arrives late / leaves early, the rest is linear
@@ -494,8 +509,9 @@ class Engine{
     this.stats.perc++;}
 
   // ----- tonal -----
-  bass(t,note,lm=1){const c=this.ctx,len=this.s16*0.85*lm;
-    const root=33+keyOff(),f=mtof(root+MINOR_PENT[note.deg]+12*note.oct);
+  bass(t,note,lm=1,lift=false){const c=this.ctx,len=this.s16*0.85*lm;
+    // lift: notes below the root go up an octave (クロスブリード: the kick tail owns the sub on the root, the off-beat bass sits on / above it)
+    const root=33+keyOff();let bm=root+MINOR_PENT[note.deg]+12*note.oct;if(lift&&bm<root)bm+=12;const f=mtof(bm);
     const o1=c.createOscillator(),o2=c.createOscillator(),m1=c.createGain(),m2=c.createGain(),lp=c.createBiquadFilter(),g=c.createGain();
     o1.type="sawtooth";o2.type="sine";o1.frequency.value=f;o2.frequency.value=f;m1.gain.value=0.35;m2.gain.value=0.6;
     const l=this.lfo(),base=this.cutHz()*(0.55+0.9*l);
@@ -776,7 +792,7 @@ class Engine{
     const bm=L.band==="b160"?BASS160[L.style]:(L.band==="bchill"?BASSCH[L.style]:null),
       b160Skip=bm==="none"?!(ca>0.5):(bm==="off"?s%4!==2:(bm==="sparse"?s%8!==0&&s%8!==3:(bm==="half"?(s%2===1||r()<0.4):false)));
     const bn=L.pat.bass[s],bSkip=b160Skip||(ca>0.05&&(this.chillMode==="beatless"?s%8!==0&&s%8!==3:(s%4!==2&&r()<0.55*ca)));
-    if(M.b&&bn&&!bSkip){this.bass(t,bn,this.chillMode==="beatless"||bm==="sparse"?2.5:(bm==="off"?0.6:(bm==="half"?1.3:1)));ev.bass=1;if(this.debug)this.bassLog.push([t,L.id]);}
+    if(M.b&&bn&&!bSkip){this.bass(t,bn,this.chillMode==="beatless"||bm==="sparse"?2.5:(bm==="off"?0.6:(bm==="half"?1.3:1)),L.band==="b160"&&L.style==="broken");ev.bass=1;if(this.debug)this.bassLog.push([t,L.id]);}
     let h=0;if(M.u)for(const d of this.decks)if(d.upOn)h=Math.max(h,this.upperStep(d.style,t,s,d)||0);ev.stab=h;
     const B=D.active?BREAKS[D.type]:null;
     ev.dropInfo=D.active?(D.src==="auto"?`${D.type==="kick"&&D.recipe?"キック抜き（"+D.recipe.name+"）":B.ja+" "+D.len+"小節"}（残り${Math.max(0,D.endBar-this.bar)}）`:(S.dropManual?"キック抜き・手動（押下中）":"キック抜き・次の小節で復帰")):"";
@@ -852,7 +868,7 @@ const UPMIX_BAND={bchill:{groove:{dly:1.4,verb:0.5},minimal:{dly:1.2,verb:0.4},h
 // per-kick-style master trim in dB (balances overall loudness across styles)
 const STYLE_TRIM_DB={minimal:0,hard:-4.5,groove:2.2,tribal:-0.3,broken:2.0};
 // the 120-band industrial kick is milder (less saturation) than the 140 hard-techno kick -> smaller trim
-const TRIM160_DB={minimal:-7.5,groove:-7.5,tribal:-7.5,broken:-6,hard:-5.2};
+const TRIM160_DB={minimal:-7.5,groove:-7.5,tribal:-7.5,broken:-5.2,hard:-5.2};   // v12: クロスブリード +0.8 dB (quieter kick, kLvl 0.8)
 const TRIMCH_DB={minimal:1,groove:1,tribal:1,broken:4.5,hard:2.6};
 const trimDb=(st,band=S.band)=>band==="bchill"?TRIMCH_DB[st]:band==="b160"?TRIM160_DB[st]:(band==="b120"&&st==="hard"?-2.5:STYLE_TRIM_DB[st]);
 const VOWELS=[[800,1150,2900],[450,800,2830],[400,1600,2700],[300,2000,2900],[350,600,2700]];
@@ -911,6 +927,9 @@ Object.assign(Engine.prototype,{
       this["upCtl_"+st]=ctl;(this.upSend=this.upSend||{})[st]={dry,ds,vs};}
     this.applyUpMix(S.band,0);
     this.padBus=c.createGain();this.padBus.gain.value=1;this.padBus.connect(this.bus.stab);
+    // kick room: the kick (post distortion) sends a little of its mids into the same space as the 上モノ (KICK_GLUE.room, 0 = off)
+    this.kickRoomHP=c.createBiquadFilter();this.kickRoomHP.type="highpass";this.kickRoomHP.frequency.value=320;this.kickRoomHP.Q.value=0.7;
+    this.kickRoom=c.createGain();this.kickRoom.gain.value=0;this.bus.kick.connect(this.kickRoomHP).connect(this.kickRoom).connect(this.upVerb);
     {const pv=c.createGain();pv.gain.value=0.7;this.padBus.connect(pv).connect(this.upVerb);}
     this.upDistOut=c.createGain();this.upDistOut.gain.value=0.25;this.upDist.connect(this.upDistOut).connect(this.upG.hard);
     this.trimEnv=new Env(this.trim.gain,Math.pow(10,trimDb(S.style)/20));
@@ -1738,7 +1757,8 @@ document.addEventListener("keyup",e=>{if(e.code==="KeyK")dropUp();});
 window.__renderOffline=async function(o){
   const saved=JSON.stringify(S);S.band=o.band||"b120";S.style=o.style||BANDS[S.band].first;
   try{const sr=44100,bars=o.bars,est=bars*16*60/(o.minBpm||Math.min(BANDS.b120.min,BANDS[S.band].min)-1)/4+2;
-    const oc=new OfflineAudioContext(2,Math.ceil(sr*est),sr),e=new Engine(oc,o.seed>>>0,{opening:!!o.opening});e.debug=true;
+    const oc=new OfflineAudioContext(o.channels||2,Math.ceil(sr*est),sr),e=new Engine(oc,o.seed>>>0,{opening:!!o.opening});e.debug=true;
+    if(o.channels)oc.destination.channelInterpretation="discrete";   // measurement renders: extra channels carry stems (see test/v12_crossbreed.mjs)
     if(o.auto)e.cond.auto=true;
     if(o.setup)o.setup(e);
     const intents=[...(o.intents||[])],res=[],swaps=[];let t=0.01,lastLow=e.low.id,closeRes=null,hardStopT=null;
@@ -1752,7 +1772,7 @@ window.__renderOffline=async function(o){
       e.scheduleStep(t);t+=e.s16;}};
     schedUntil(1.5);
     const gr=[];for(let k=1;k<est-0.5;k+=1){oc.suspend(k).then(()=>{if(k<t)gr.push(e.lim.reduction);schedUntil(k+1.5);oc.resume();});}
-    const buf=await oc.startRendering();const end=t;
+    const buf=await oc.startRendering();const end=t;if(o.keep)window.__lastBuf={buf,end,kicks:e.kickLog.map(x=>x[0]),bass:e.bassLog.map(x=>x[0]),bpmLog:e.bpmLog,key:S.key,keyOff:keyOff()};
     const L=buf.getChannelData(0),R=buf.getChannelData(1),n=Math.min(L.length,Math.ceil(end*sr));let pk=0,ss=0,nan=0;
     for(const x of [L,R])for(let i=0;i<n;i++){const v=x[i];if(!Number.isFinite(v)){nan++;continue;}pk=Math.max(pk,Math.abs(v));ss+=v*v;}
     // per-16-bar RMS
