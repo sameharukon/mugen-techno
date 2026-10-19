@@ -22,7 +22,7 @@ const r1=await p.evaluate(()=>{const oc=new OfflineAudioContext(2,44100,44100),e
 console.log(JSON.stringify(r1,null,1));
 // (2) live UI
 await p.click('#play'); await p.waitForTimeout(500);
-const say=async t=>{await p.fill('#say',t);await p.press('#say','Enter');await p.waitForTimeout(150);};
+const say=async t=>{await p.evaluate(x=>sendIntent(x),t);await p.waitForTimeout(150);};
 await say('一気にトライバルに'); await say('少し明るく'); await p.click('[data-brk="stutter"]');
 await p.waitForTimeout(36000);
 await say('ブレイクダウンして'); await say('少しテンポ上げて'); await p.waitForTimeout(800); await say('ずっとこのまま'); await p.waitForTimeout(1500);

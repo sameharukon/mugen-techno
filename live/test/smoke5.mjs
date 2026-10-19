@@ -14,7 +14,7 @@ console.log('after start interp:', await p.textContent('#interp'));
 await st('start');
 for (const t of ['盛り上げて','明るく']) { await p.click(`[data-intent="${t}"]`); console.log(t,'->',await p.textContent('#interp')); }
 // free text with intensity
-for (const t of ['かなり暗くして空間を広げて','一気にハードに','少しテンポ上げて','ねこ']) { await p.fill('#say',t); await p.press('#say','Enter'); await p.waitForTimeout(150);
+for (const t of ['かなり暗くして空間を広げて','一気にハードに','少しテンポ上げて','ねこ']) { await p.evaluate(x=>sendIntent(x),t); await p.waitForTimeout(150);
   console.log(JSON.stringify(t),'->',await p.textContent('#interp'), '| suggest:', (await p.locator('#suggest button').allTextContents()).join(',')); }
 await p.click('#suggest button:first-child'); console.log('suggest click ->', await p.textContent('#interp'));
 console.log('timeline:', (await p.locator('#timeline li').allTextContents()).join(' | '));

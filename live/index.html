@@ -70,7 +70,7 @@ input[type=range]{width:100%;accent-color:var(--acc)}
 <body>
 <main>
 <h1>TECHNO LIVE — 意図で操るDJ</h1>
-<div class="sub">数値ではなく「どうしたいか」を伝えてください。指揮者（コンダクター）がフレーズ単位でDJのように少しずつ変えていきます。セットは120帯／140帯のテンポ帯ごとに組まれ、帯の中でゆっくり流れます。ブレイクは種類を指定することも、おまかせにすることもできます。終わった予定は「消化した予定」に残ります。（スペース：再生/停止 ・ K：キック抜き）</div>
+<div class="sub">数値ではなく、ボタンで「どうしたいか」を伝えてください。指揮者（コンダクター）がフレーズ単位でDJのように少しずつ変えていきます。セットは120帯／140帯のテンポ帯ごとに組まれ、帯の中でゆっくり流れます。ブレイクは種類を指定することも、おまかせにすることもできます。終わった予定は「消化した予定」に残ります。（スペース：再生/停止 ・ K：キック抜き）</div>
 <div class="top">
   <button id="play" class="play">▶ スタート</button>
   <div class="bandsel" title="セットのテンポ帯（途中で切り替えるとビートレスのブリッジでテンポを移行）"><button id="bandb120" data-band="b120" class="on">120帯</button><button id="bandb140" data-band="b140">140帯</button></div>
@@ -82,7 +82,6 @@ input[type=range]{width:100%;accent-color:var(--acc)}
     <div class="h"><span>意図を伝える</span><span id="holdinfo"></span></div>
     <div class="intents" id="intents"></div>
     <div class="chips brks" id="breaks"><span>ブレイク：</span></div>
-    <div class="say"><input id="say" type="text" placeholder="例：少し暗くして一気に盛り上げて／トライバルに／ブレイク入れて"><button id="send">送る</button></div>
     <div id="interp"></div>
     <div class="chips" id="suggest"></div>
     <div id="logwrap"><div class="h"><span>消化した予定</span><span id="logcount"></span></div><ul id="log"><li class="empty">まだありません（スタートすると、終わった予定がここに残ります）</li></ul></div>
@@ -1446,8 +1445,6 @@ $("suggest").addEventListener("click",e=>{const b=e.target.closest("button");if(
 function sendIntent(text){text=String(text||"").trim();if(!text)return;
   if(!eng){pendingIntents.push(text);$("interp").classList.remove("bad");$("interp").textContent=`「${text}」はスタート後に反映します`;return;}
   const res=eng.cond.intent(text);showInterp(res,text);updatePanel();return res;}
-$("send").addEventListener("click",()=>{sendIntent($("say").value);$("say").value="";});
-$("say").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing){sendIntent($("say").value);$("say").value="";}});
 function renderBand(){const b=eng?eng.cond.band:S.band,pb=eng?eng.cond.pendingBand:null;
   for(const k of Object.keys(BANDS)){const el=$("band"+k);el.classList.toggle("on",k===b);el.textContent=BANDS[k].ja+(k===pb?"…":"");}}
 $("bandb120").parentNode.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;

@@ -12,7 +12,7 @@ await p.click('#play'); await p.waitForTimeout(600);
 await p.evaluate(()=>{eng.debug=true;window.__bars=[];const f=eng.onStep;eng.onStep=(s,t,ev,bar)=>{if(s===0)__bars.push(t);f(s,t,ev,bar);};});
 const st=async l=>console.log(l, JSON.stringify(await p.evaluate(()=>({bar:eng.bar,bpm:+eng.bpm.toFixed(2),low:eng.low.style,mix:eng.cond.mix?eng.cond.mix.state:null,
   drop:eng.drop.active?eng.drop.type:null,minLead:+eng.minLead.toFixed(3),plan:eng.cond.events.filter(e=>e.type==='break'||e.type==='drop').map(e=>e.btype+'@'+e.bar)}))));
-const say=async t=>{await p.fill('#say',t);await p.press('#say','Enter');await p.waitForTimeout(120);console.log(JSON.stringify(t),'->',await p.textContent('#interp'));};
+const say=async t=>{await p.evaluate(x=>sendIntent(x),t);await p.waitForTimeout(120);console.log(JSON.stringify(t),'->',await p.textContent('#interp'));};
 const chip=async k=>{await p.click(`[data-brk="${k}"]`);await p.waitForTimeout(80);console.log('chip',k,'->',await p.textContent('#interp'));};
 const waitDone=async (n,ms)=>{const t0=Date.now();while(Date.now()-t0<ms){const c=await p.evaluate(()=>eng.breakLog.length+(eng.drop.active?0:0));if(c>=n&&!(await p.evaluate(()=>eng.drop.active||eng.cond.events.some(e=>e.type==='break'))))return;await p.waitForTimeout(500);}};
 // batch 1: quick buttons (they queue back-to-back without overlapping)
