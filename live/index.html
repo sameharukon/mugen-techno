@@ -801,6 +801,7 @@ class Engine{
         if(d.loopBP){const ph=((this.bar+d.id*5)%8)/8,f=(650+2600*(0.5-0.5*Math.cos(2*Math.PI*ph)))*Math.pow(2,(0.5-p.dark)*0.8);d.loopBP.frequency.setTargetAtTime(Math.min(6000,f),t,0.6);}}
       if(this.debug)this.arrLog.push([this.bar,this.decks.map(d=>[d.id,d.style,(d.arr.chillPatch||patchList(d)[d.arr.variant]).n,d.arr.section,d.arr.motif?d.arr.motif.id:0,d.arr.layer2&&this.bar%16===0?d.arr.layer2:"",d.arr.chillPatch?d.arr.chillPatch.n:""])]);
       const padOk=!(D.active&&["bridge","intro","outro"].includes(D.type));
+      this.chipBar(t);
       const padNow=this.bar%8===0||this.chordOf(this.low).semi!==this.chordOf(this.low,this.bar-1).semi||this.padDeck!==this.low;  // v13: the pad follows the chord changes
       if(padNow&&(this.chillAmt>0.3||this.low.band==="bchill")&&padOk){this.padDeck=this.low;this.chillPad(t,this.chillAmt>0.3?this.chillAmt:0.55,this.padSpan(this.low));}   // chill band: warm pad bed throughout
       if(D.active&&D.type==="bridge"&&D.dir==="up"&&D.endBar-this.bar===2&&S.riser)this.riserFx(t,t+32*this.s16,520);   // tempo is final by now
@@ -839,6 +840,7 @@ class Engine{
     const bn=L.pat.bassAt(s,this.bar),bSkip=b160Skip||(ca>0.05&&(this.chillMode==="beatless"?s%8!==0&&s%8!==3:(s%4!==2&&r()<0.55*ca)));
     if(M.b&&bn&&!bSkip){this.bass(t,bn,this.chillMode==="beatless"||bm==="sparse"?2.5:(bm==="off"?0.6:(bm==="half"?1.3:1)),L.band==="b160"&&L.style==="broken");ev.bass=1;if(this.debug)this.bassLog.push([t,L.id]);}
     let h=0;if(M.u)for(const d of this.decks)if(d.upOn)h=Math.max(h,this.upperStep(d.style,t,s,d)||0);ev.stab=h;
+    if(M.u&&this.chip.on)this.chipStep(t,s);
     const B=D.active?BREAKS[D.type]:null;
     ev.dropInfo=D.active?(D.src==="auto"?`${D.type==="kick"&&D.recipe?"キック抜き（"+D.recipe.name+"）":B.ja+" "+D.len+"小節"}（残り${Math.max(0,D.endBar-this.bar)}）`:(S.dropManual?"キック抜き・手動（押下中）":"キック抜き・次の小節で復帰")):"";
     ev.style=L.style;ev.decks=this.decks.map(d=>d.style);
@@ -972,6 +974,7 @@ Object.assign(Engine.prototype,{
       this["upCtl_"+st]=ctl;(this.upSend=this.upSend||{})[st]={dry,ds,vs};}
     this.applyUpMix(S.band,0);
     this.padBus=c.createGain();this.padBus.gain.value=1;this.padBus.connect(this.bus.stab);
+    this.initChip();
     // kick room: the kick (post distortion) sends a little of its mids into the same space as the 上モノ (KICK_GLUE.room, 0 = off)
     this.kickRoomHP=c.createBiquadFilter();this.kickRoomHP.type="highpass";this.kickRoomHP.frequency.value=320;this.kickRoomHP.Q.value=0.7;
     this.kickRoom=c.createGain();this.kickRoom.gain.value=0;this.bus.kick.connect(this.kickRoomHP).connect(this.kickRoom).connect(this.upVerb);
@@ -1086,6 +1089,74 @@ Object.assign(Engine.prototype,{
     o.connect(g).connect(this.upG.broken);o.start(t);o.stop(t+0.45);this.free(o,g);}
 });
 
+
+// ---------- v15: chiptune colour layer (occasional spice: pulse/duty leads, NES-style arps, noise ticks, light bit-crush) ----------
+const CHIP_P={b120:.5,bchill:.5,b140:.42,b160:.26};       // chance per free 16-bar phrase line (after a cooldown)
+const CHIP_DUTY=[0.125,0.25,0.5],CHIP_DUTY_JA={0.125:"12.5%",0.25:"25%",0.5:"50%"};
+Object.assign(Engine.prototype,{
+  initChip(){const c=this.ctx,bd=()=>16*this.s16;
+    this.chip={on:false,cool:0,start:-1,end:-1};this.chipSegs=[];this.chipLog=[];
+    this.chipWaves={};for(const d of CHIP_DUTY){const N=40,re=new Float32Array(N),im=new Float32Array(N);for(let n=1;n<N;n++)re[n]=2/(n*Math.PI)*Math.sin(n*Math.PI*d);this.chipWaves[d]=c.createPeriodicWave(re,im);}
+    this.chipIn=c.createGain();this.chipIn.gain.value=1;
+    const cr=c.createWaveShaper();cr.curve=Engine.curve(4096,x=>Math.round(x*128)/128);   // light 8-bit-style amplitude quantiser, this layer only
+    this.chipLp=c.createBiquadFilter();this.chipLp.type="lowpass";this.chipLp.frequency.value=1500;this.chipLp.Q.value=0.5;
+    this.chipFade=c.createGain();this.chipFade.gain.value=0;
+    this.chipIn.connect(cr).connect(this.chipLp).connect(this.chipFade);
+    const dry=c.createGain();dry.gain.value=0.9;this.chipFade.connect(dry).connect(this.bus.stab);       // upper bus (kick pump / ducking)
+    const vs=c.createGain();vs.gain.value=0.22;this.chipFade.connect(vs).connect(this.upVerb);            // shared reverb
+    const ds=c.createGain();ds.gain.value=0.15;this.chipFade.connect(ds).connect(this.send);},           // shared dub delay
+  // bar hook: start / develop / end the layer
+  chipBar(t){const C=this.chip,D=this.drop,bar=this.bar,bd=16*this.s16,cd=this.cond;
+    const blocked=!!(cd.closing||cd.opening||this.closed||cd.pendingBand||(D.active&&["bridge","intro","outro","breakdown"].includes(D.type)));
+    const stop=!!(cd.closing||cd.opening||this.closed||(D.active&&["bridge","intro","outro"].includes(D.type)));   // a running segment only yields to bridge / opening / closing
+    if(C.on){if(stop||bar>=C.end||!this.decks.includes(C.deck))this.chipOff(t,stop?0.25:bd*0.3);
+      else{if(bar===C.end-1)this.chipFadeOut(t,bd);if((bar-C.start)%4===0&&bar>C.start)this.developMotif(C.M,C.deck);
+        if(!C.chill&&this.rand()<0.12)C.duty=CHIP_DUTY[Math.floor(this.rand()*3)];}
+      return;}
+    const force=this.chipForceBar!=null&&bar===this.chipForceBar;
+    if(!force&&(bar%16!==0||bar<24||blocked||D.active||cd.mix||bar<C.cool||cd.p.energy>0.85))return;
+    if(!force&&this.rand()>(CHIP_P[this.low.band]||0.2))return;
+    let len=force&&this.chipForceLen?this.chipForceLen:(this.rand()<0.55?8:16);
+    if(!force){const nx=cd.events.filter(x=>x.bar>bar&&x.bar<=bar+len&&(x.type==="mixStart"||x.type==="bandSwitch"||(x.type==="break"&&["bridge","breakdown"].includes(x.btype)))).map(x=>x.bar);
+      if(nx.length){len=Math.min(...nx)-bar;if(len<8)return;len=len>=16?16:8;}}      // never cut short by a planned mix / bridge / breakdown
+    this.chipOn(t,len);},
+  chipOn(t,len){const C=this.chip,d=this.low,r=this.rand,bd=16*this.s16,ch=d.band==="bchill";
+    Object.assign(C,{on:true,start:this.bar,end:this.bar+len,deck:d,chill:ch,mode:r()<0.5?"arp":"lead",duty:ch?0:CHIP_DUTY[Math.floor(r()*3)],lvl:ch?0.5:0.8,M:this.newMotif(d)});
+    const g=this.chipFade.gain,f=this.chipLp.frequency;g.cancelAndHoldAtTime(t);g.setTargetAtTime(C.lvl,t,bd*0.3);
+    f.cancelAndHoldAtTime(t);f.setValueAtTime(1500,t);f.exponentialRampToValueAtTime(ch?5000:7000,t+2*bd);
+    this.chipSegs.push([this.bar,this.bar+len,d.band,C.mode]);
+    this.cond.logItem(`チップチューン・スパイス ${len}小節（${C.mode==="arp"?"アルペジオ":"リード"}・${ch?"三角波":"パルス"+CHIP_DUTY_JA[C.duty]}）`,"おまかせ","done",this.bar,t);},
+  chipFadeOut(t,dur){const g=this.chipFade.gain,f=this.chipLp.frequency;g.cancelAndHoldAtTime(t);g.setTargetAtTime(0,t,dur*0.3);f.cancelAndHoldAtTime(t);f.exponentialRampToValueAtTime(1500,t+dur);},
+  chipOff(t,tau){const C=this.chip;if(!C.on)return;C.on=false;const g=this.chipFade.gain;g.cancelAndHoldAtTime(t);g.setTargetAtTime(0,t,tau);
+    const s=this.chipSegs[this.chipSegs.length-1];if(s)s[1]=this.bar;C.cool=this.bar+32;},
+  // step hook: motif lead (v13 machinery) / chord-tone arps / noise-channel ticks
+  chipStep(t,s){const C=this.chip,d=C.deck,M=C.M,r=this.rand,s16=this.s16;if(!M||!M.bars)return;
+    const sc=d.scale,L=sc.length,root=57+offOf(d.key),{semi,ci}=this.chordOf(d),fi=(((this.bar-M.start)%8)+8)%8,letter=M.form[fi],N=letter==="-"?[]:M.bars[letter];
+    const toMidi=(deg,oct)=>{const oc=Math.floor(deg/L);let m=root+12+sc[((deg%L)+L)%L]+12*(oc+oct);while(m>root+24)m-=12;while(m<root+2)m+=12;return m;};
+    for(const n of N){if(n.s!==s||(C.mode==="arp"&&r()<0.55))continue;
+      const midi=toMidi(n.deg+M.tr+ci,n.oct),dur=s16*(C.chill?2.2:1.3)*(n.len||1)*(0.8+0.4*r());
+      this.chipNote(t,midi,dur,n.vel*(0.85+0.3*r()),{slide:!C.chill&&r()<0.12?(r()<0.5?-2:2):0,vib:dur>s16*2&&r()<0.5});}
+    const arpStep=C.chill?s%8===4:s%4===2;
+    if((C.mode==="arp"||letter==="-")&&arpStep&&r()<(C.chill?0.6:0.75)){const sh=semi>6?-12:0,tones=this.chordTones(d,semi,3).map(x=>root+12+x+sh);
+      if(r()<0.5)tones.push(tones[0]+12);this.chipArp(t,tones,(C.chill?4:2)*s16,C.chill?s16:s16/2);}
+    if(!C.chill){if(s%4===2&&r()<0.6)this.chipNoise(t,0.5,false);if(s===12&&this.bar%2===1&&r()<0.5)this.chipNoise(t,0.7,true);}},
+  chipOsc(t,f){const o=this.ctx.createOscillator();if(this.chip.chill)o.type="triangle";else o.setPeriodicWave(this.chipWaves[this.chip.duty]);o.frequency.setValueAtTime(f,t);return o;},
+  chipEnv(g,t,pk,dur){g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(pk,t+0.003);g.gain.setTargetAtTime(pk*0.7,t+0.003,Math.max(0.02,dur*0.5));g.gain.setTargetAtTime(0,t+dur,0.008);},
+  chipNote(t,midi,dur,vel,o={}){const c=this.ctx,f=mtof(midi),os=this.chipOsc(t,o.slide?f*Math.pow(2,o.slide/12):f),g=c.createGain();
+    if(o.slide)os.frequency.exponentialRampToValueAtTime(f,t+0.04);
+    if(o.vib){const l=c.createOscillator(),lg=c.createGain();l.frequency.value=6;lg.gain.setValueAtTime(0,t);lg.gain.linearRampToValueAtTime(22,t+dur*0.7);l.connect(lg).connect(os.detune);l.start(t);l.stop(t+dur+0.1);this.free(l,lg);}
+    this.chipEnv(g,t,(this.chip.chill?0.055:0.045)*vel,dur);os.connect(g).connect(this.chipIn);os.start(t);os.stop(t+dur+0.08);this.free(os,g);
+    if(this.debug)this.chipLog.push([this.bar,this.step%16,"lead",midi,this.chip.deck.key,this.chip.deck.mode]);},
+  chipArp(t,midis,dur,rate){const c=this.ctx,os=this.chipOsc(t,mtof(midis[0])),g=c.createGain();
+    for(let i=1,k=1;t+i*rate<t+dur-1e-4;i++,k++)os.frequency.setValueAtTime(mtof(midis[k%midis.length]),t+i*rate);
+    this.chipEnv(g,t,this.chip.chill?0.04:0.032,dur);os.connect(g).connect(this.chipIn);os.start(t);os.stop(t+dur+0.08);this.free(os,g);
+    if(this.debug)for(const m of midis)this.chipLog.push([this.bar,this.step%16,"arp",m,this.chip.deck.key,this.chip.deck.mode]);},
+  chipNoise(t,vel,snare){const c=this.ctx,n=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain(),dec=snare?0.07:0.025;
+    n.buffer=this.noise;f.type=snare?"bandpass":"highpass";f.frequency.value=snare?2600:6000;f.Q.value=snare?0.9:0.7;
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.05*vel,t+0.002);g.gain.setTargetAtTime(0,t+0.003,dec);
+    n.connect(f).connect(g).connect(this.chipIn);n.start(t,this.rand()*1.5);n.stop(t+dec*8+0.02);this.free(n,f,g);
+    if(this.debug)this.chipLog.push([this.bar,this.step%16,"noise",0]);}
+});
 
 // ---------- 上モノ arranger: patch variants × motif development × phrase sections ----------
 const UP_SCALE={minimal:[0,3,5,7,10],hard:[0,1,3,5,7,8,10],groove:[0,2,3,5,7,9,10],tribal:[0,3,5,7,10],broken:[0,3,5,7,10]};
@@ -1296,7 +1367,8 @@ Object.assign(Engine.prototype,{
       o.connect(og).connect(filt||g);o.start(t);o.stop(stopT);os.push(o);this.free(o,og);}
     os[0].addEventListener("ended",()=>{for(const n of nodes)n.disconnect();});},
   playMotif(st,t,s,deck,pv){const A=deck.arr,M=A.motif,r=this.rand,sc=deck.scale||UP_SCALE[st],root=57+offOf(deck.key!=null?deck.key:S.key),out=this.upG[st],s16=this.s16;
-    if(!M||!M.bars)return 0;let h=0;const L=sc.length,fi=(((this.bar-M.start)%8)+8)%8,letter=M.form[fi],N=letter==="-"?[]:M.bars[letter];
+    if(!M||!M.bars)return 0;if(this.chip&&this.chip.on&&r()<(A.section==="intense"?0.8:0.5))return 0;
+    let h=0;const L=sc.length,fi=(((this.bar-M.start)%8)+8)%8,letter=M.form[fi],N=letter==="-"?[]:M.bars[letter];
     const ci=deck.harm&&deck.harm.upFollow?this.chordOf(deck).ci:0;
     const toMidi=(deg,oct)=>{const oc=Math.floor(deg/L);let m=root+sc[((deg%L)+L)%L]+12*(oc+oct);while(m>root+26)m-=12;while(m<root-10)m+=12;return m;};
     const voiced=midi=>{if(!DIATONIC.has(pv.n)||!pv.chord||pv.chord.length<3)return pv;const rel=midi-root;   // chord patches: diatonic voicing in the deck's mode
@@ -1803,7 +1875,8 @@ function updatePanel(){
   $("arc").innerHTML=["opening",...PHASES.slice(0,3),"chill","release","closing"].filter(ph=>ph!=="chill"||!BANDS[C.band].noChill).map(ph=>{
     const on=special?ph===special:(ph==="chill"?chOn:(!chOn&&cur&&cur.phase===ph));
     return `<span class="${on?"on":""}${ph==="chill"?" ch":""}${ph==="opening"||ph==="closing"?" oc":""}">${phJa(ph,C.band)}</span>`;}).join("");
-  $("upinfo").textContent="上モノ："+eng.decks.filter(d=>d.upOn&&d.arr.init).map(d=>`${C.ja(d.style)}＝${((d.arr.chillPatch||patchList(d)[d.arr.variant])||{}).ja}・${SECTION_JA[d.arr.section]}`).join(" ／ ");
+  $("upinfo").textContent="上モノ："+eng.decks.filter(d=>d.upOn&&d.arr.init).map(d=>`${C.ja(d.style)}＝${((d.arr.chillPatch||patchList(d)[d.arr.variant])||{}).ja}・${SECTION_JA[d.arr.section]}`).join(" ／ ")
+    +(eng.chip&&eng.chip.on?` ／ チップチューン（${eng.chip.mode==="arp"?"アルペジオ":"リード"}・あと${Math.max(0,eng.chip.end-b)}小節）`:"");
   if(M){const pr=Math.max(0,Math.min(1,(b-M.m)/M.L));$("mixbar").style.width=(pr*100)+"%";
     $("mixinfo").textContent=b<M.m?`${M.m-b}小節後にミックス開始（${C.ja(M.from)} → ${C.ja(M.to)}、${M.L}小節）`:
       `ミックス中 ${Math.round(pr*100)}%：${C.ja(M.from)} → ${C.ja(M.to)}（${M.state==="swapped"?"キック＋ベース交換済み":"交換まで"+(M.swap-b)+"小節"}）`;}
