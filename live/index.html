@@ -64,6 +64,7 @@ input[type=range]{width:100%;accent-color:var(--acc)}
 .setl i.cur{border-color:var(--acc);color:var(--acc)}.setl i small{color:var(--dim);font-size:10px;margin-left:3px}
 .arc{display:flex;gap:2px;margin-top:6px}.arc span{flex:1;text-align:center;font-size:10px;color:var(--dim);border-bottom:3px solid #262a31;padding-bottom:2px}
 .arc span.on{color:var(--acc2);border-color:var(--acc2)}
+.arc span.ch.on{color:#9f7aea;border-color:#9f7aea}.setl i.ch{border-color:#6b46c1;color:#b794f4}
 </style>
 </head>
 <body>
@@ -120,7 +121,10 @@ const BANDS={
     pool:{warm:["minimal","broken"],build:["tribal","groove","broken"],peak:["hard","groove","tribal"],release:["minimal","broken","tribal"]}},
   b140:{ja:"140帯",min:134,max:148,center:140,start:137,first:"groove",arc:{warm:137,build:140,peak:144,release:140},
     pool:{warm:["groove","minimal"],build:["tribal","groove","broken"],peak:["hard","tribal","hard"],release:["groove","minimal","tribal"]}}};
-const PHASES=["warm","build","peak","release"],PHASE_JA={warm:"ウォームアップ",build:"ビルド",peak:"ピーク",release:"リリース"},PHASE_E={warm:.38,build:.6,peak:.88,release:.5};
+const PHASES=["warm","build","peak","release"],PHASE_JA={warm:"ウォームアップ",build:"ビルド",peak:"ピーク",release:"リリース",chill:"チル"},PHASE_E={warm:.38,build:.6,peak:.88,release:.5,chill:.22};
+// chill episode: same band / same tempo rules, softer rounded kick (or half-time / brief beatless), warm pads, dubby space, fewer hats
+const CHILL_MODE_JA={soft4:"丸いキックの4つ打ち",half:"ハーフタイム",beatless:"ビートレス"};
+const chillKick=(st,band)=>({...kickParams(st,band),f0:125,f1:45,sw:0.14,tau:0.12,click:0.1,len:0.5,drive:0,rumble:0});
 const STYLE_BAND={b120:{minimal:{bpm:124,ja:"ミニマル"},tribal:{bpm:126,ja:"トライバル"},broken:{bpm:125,ja:"ブロークン"},groove:{bpm:127,ja:"グルーヴィー"},hard:{bpm:129,ja:"インダストリアル"}},
   b140:{minimal:{bpm:138,ja:"ハイプノティック"},groove:{bpm:136,ja:"ハードグルーヴ"},tribal:{bpm:140,ja:"ピークタイム・トライバル"},broken:{bpm:139,ja:"ブロークン（速め）"},hard:{bpm:144,ja:"ハードテクノ"}}};
 const styleJa=(st,band=S.band)=>(STYLE_BAND[band]&&STYLE_BAND[band][st]||STYLES[st]).ja;
@@ -333,7 +337,7 @@ class Engine{
     this.dR.connect(this.panR).connect(this.wet);this.dR.connect(this.fbR).connect(this.dL);
     this.wet.connect(this.bus.stab);
     this.bpm=BANDS[S.band].start;this.bpmGlide=null;this.setBpm(this.bpm,0);
-    this.kp=kickParams(S.style,S.band);this.kMorph=null;this.motifSeq=0;this.upLog=[];this.kpLog=[];this.arrLog=[];
+    this.kp=kickParams(S.style,S.band);this.kMorph=null;this.motifSeq=0;this.upLog=[];this.kpLog=[];this.arrLog=[];this.chillAmt=0;this.chillGlide=null;this.chillMode=null;this.chillLog=[];this.hatBar=0;this.kickBarCnt=0;
     this.step=0;this.nextTime=0;this.bar=0;this.onStep=null;
     this.initUpper();this.decks=[this.makeDeck(S.style,true)];this.low=this.decks[0];this.cur=this.low.out;this.cond=new Conductor(this);
     this.drop={active:false,type:"kick",src:null,endBar:-1,startBar:0,len:0,armed:false,tr:0,riserOn:false,spaceBoost:0};this.returnTimes=[];this.dropTimes=[];
@@ -405,10 +409,10 @@ class Engine{
     hp.type=type;hp.frequency.value=freq;hp.Q.value=type==="bandpass"?2:0.7;p.pan.value=pan;
     g.gain.setValueAtTime(vel,t);g.gain.setTargetAtTime(0,t,tau);
     n.connect(hp).connect(g).connect(p).connect(bus);this.free(n,hp,g,p);}
-  clap(t){const c=this.ctx;
+  clap(t,vel=1){const c=this.ctx;
     const n=this.noiseSrc(t,0.6),bp=c.createBiquadFilter(),g=c.createGain();
     bp.type="bandpass";bp.frequency.value=1600;bp.Q.value=1.1;
-    const v=0.32;g.gain.setValueAtTime(0,t);
+    const v=0.32*vel;g.gain.setValueAtTime(0,t);
     for(const o of [0,0.011,0.022]){g.gain.setValueAtTime(v,t+o);g.gain.setTargetAtTime(0,t+o,0.006);}
     g.gain.setValueAtTime(v*0.8,t+0.03);g.gain.setTargetAtTime(0,t+0.03,0.06);
     n.connect(bp).connect(g).connect(this.cur.clap);this.free(n,bp,g);}
@@ -602,6 +606,9 @@ class Engine{
       else{this.snare(t,0.5+0.035*(s-8));this.snare(t+s16/2,0.52+0.035*(s-8));ev.fill=1;}}}
 
   buildKickBar(d){const P=d.pat,r=this.rand,k=new Array(16).fill(0);
+    if(this.chillMode==="beatless")return k;
+    if(this.chillMode==="half"){k[0]=1;if(r()<0.35)k[10]=0.6;return k;}
+    if(this.chillMode==="soft4"){for(const s of [0,4,8,12])k[s]=0.85;if(r()<0.25)k[[7,15][Math.floor(r()*2)]]=0.4;return k;}
     if(d.style==="broken"){for(const s of P.broken)k[s]=s===0?1:0.9;return k;}
     for(const s of [0,4,8,12])k[s]=1;
     if(d.style==="groove"){
@@ -623,14 +630,17 @@ class Engine{
         if(Math.abs(dv)>1e-4){this.bpm+=Math.max(-mx,Math.min(mx,dv));this.setBpm(this.bpm,t);}
         if(C.tempoGoal&&Math.abs(tg-this.bpm)<0.02){C.logItem(C.tempoGoal.label+"：到達",C.tempoGoal.src,"done",this.bar,t);C.tempoGoal=null;C.tempoRate=0.5;}}
       this.updateKickMorph();
+      if(this.chillGlide){const g=this.chillGlide;if(this.bar>=g.b0){const x=Math.min(1,(this.bar-g.b0+1)/g.bars);this.chillAmt=g.from+(g.to-g.from)*x;if(x>=1)this.chillGlide=null;}}
+      if(this.debug&&this.bar>0)this.chillLog.push([this.bar-1,this.hatBar,this.kickBarCnt]);this.hatBar=0;this.kickBarCnt=0;
       if(this.debug)this.kpLog.push([this.bar,+this.kp.drive.toFixed(3),+this.kp.rumble.toFixed(3),+this.kp.tau.toFixed(3),+this.kp.f0.toFixed(1)]);
-      if(this.debug)this.bpmLog.push([this.bar,+this.bpm.toFixed(3),this.low.style,this.decks.map(d=>d.style).join("+")]);
+      if(this.debug)this.bpmLog.push([this.bar,+this.bpm.toFixed(3),this.low.style,this.decks.map(d=>d.style).join("+"),+this.chillAmt.toFixed(3),this.chillMode||"",+C.p.energy.toFixed(3),+C.p.density.toFixed(3)]);
       if(D.active && D.armed) this.dropEnd(t);      // return already prepared during the previous beat
       if(D.active && !D.armed && D.type==="kick" && (D.src==="manual"||this.bar>=D.endBar||S.dropManual)){D.src="manual";D.endBar=-1;}
       C.onBar(this.bar,t);                          // conductor: intents, phrase plans, DJ mix events
       this.applyBarParams(t);
       for(const d of this.decks){d.pat.nextBar(v);d.kickBar=this.buildKickBar(d);this.arrangeUpper(d);}
-      if(this.debug)this.arrLog.push([this.bar,this.decks.map(d=>[d.id,d.style,PATCHES[d.style][d.arr.variant].n,d.arr.section,d.arr.motif?d.arr.motif.id:0,d.arr.layer2&&this.bar%16===0?d.arr.layer2:""])]);
+      if(this.debug)this.arrLog.push([this.bar,this.decks.map(d=>[d.id,d.style,(d.arr.chillPatch||PATCHES[d.style][d.arr.variant]).n,d.arr.section,d.arr.motif?d.arr.motif.id:0,d.arr.layer2&&this.bar%16===0?d.arr.layer2:"",d.arr.chillPatch?d.arr.chillPatch.n:""])]);
+      if(this.chillAmt>0.3&&this.bar%8===0&&!(D.active&&D.type==="bridge"))this.chillPad(t,this.chillAmt);
       if(D.active&&D.type==="bridge"&&D.dir==="up"&&D.endBar-this.bar===2&&S.riser)this.riserFx(t,t+32*this.s16,520);   // tempo is final by now
     }
     if(S.dropManual && !D.active && s%4===0) this.dropStart(t,"manual",0);
@@ -639,8 +649,9 @@ class Engine{
     const M=this.breakMask(s),BT=D.active?D.type:null,last=D.active&&D.endBar>0&&this.bar===D.endBar-1;
     const ev={kick:0,hat:0,clap:0,perc:0,bass:0,stab:0,drop:D.active&&!M.k,fill:0,brk:D.active?BREAKS[D.type].ja:""};
     const L=this.low;                               // only ONE deck owns kick+bass at any time
-    const logK=tt=>{if(this.debug)this.kickLog.push([tt,L.id]);};
-    if(M.k && L.kickBar[s]){this.kick(t,L.kickBar[s]);ev.kick=L.kickBar[s];logK(t);}
+    const logK=tt=>{this.kickBarCnt++;if(this.debug)this.kickLog.push([tt,L.id]);};
+    const ca=this.chillAmt;
+    if(M.k && L.kickBar[s]){const kv=L.kickBar[s]*(1-0.25*ca);this.kick(t,kv);ev.kick=kv;logK(t);}
     if(BT==="kick"&&D.recipe&&D.recipe.remove==="offbeat"&&!D.recipe.micro&&s%4===2&&!(last&&s===14&&/kickroll/.test(D.recipe.fill))){this.kick(t,0.55);ev.kick=0.55;logK(t);}
     if(D.active && !D.armed && s>=12 && (D.type!=="kick"||!S.dropManual) && (D.src==="manual"||this.bar===D.endBar-1))
       this.armReturn(t+(16-s)*this.s16,t);
@@ -661,7 +672,8 @@ class Engine{
     else if(!D.active && p.tension>0.55 && this.bar%16===15 && s>=12 && r()<p.tension){this.snare(t,0.25+0.12*(s-12));ev.fill=1;}
     for(const d of this.decks){if(!d.topOn)continue;this.cur=d.out;this.drumsTop(d,t,s,ev,v,M);}
     this.cur=L.out;
-    const bn=L.pat.bass[s];if(M.b&&bn){this.bass(t,bn);ev.bass=1;if(this.debug)this.bassLog.push([t,L.id]);}
+    const bn=L.pat.bass[s],bSkip=ca>0.05&&(this.chillMode==="beatless"?s%8!==0&&s%8!==3:(s%4!==2&&r()<0.55*ca));
+    if(M.b&&bn&&!bSkip){this.bass(t,bn,this.chillMode==="beatless"?2.5:1);ev.bass=1;if(this.debug)this.bassLog.push([t,L.id]);}
     let h=0;if(M.u)for(const d of this.decks)if(d.upOn)h=Math.max(h,this.upperStep(d.style,t,s,d)||0);ev.stab=h;
     const B=D.active?BREAKS[D.type]:null;
     ev.dropInfo=D.active?(D.src==="auto"?`${D.type==="kick"&&D.recipe?"キック抜き（"+D.recipe.name+"）":B.ja+" "+D.len+"小節"}（残り${Math.max(0,D.endBar-this.bar)}）`:(S.dropManual?"キック抜き・手動（押下中）":"キック抜き・次の小節で復帰")):"";
@@ -669,13 +681,13 @@ class Engine{
     if(this.onStep) this.onStep(s,t,ev,this.bar);
     this.step++;
   }
-  drumsTop(d,t,s,ev,v,M=M_ALL){const P=d.pat,r=this.rand,p=this.cond.p,dn=this.dens();
+  drumsTop(d,t,s,ev,v,M=M_ALL){const P=d.pat,r=this.rand,p=this.cond.p,dn=this.dens(),ca=this.chillAmt,cm=this.chillMode,hv=1-0.55*ca;
     const tsw=s%2===1?t+p.swing*0.25*this.s16:t;
-    if(!M.h){}
-    else if(s%4===2){this.hat(t,0.38*P.hatAccent[s]*(0.85+0.3*r())*(0.8+0.45*p.energy),0.07,0.012,(r()-0.5)*0.3);ev.hat=1;}
-    else if(s%2===1 && r()<P.ghost*Math.min(1.6,0.3+1.5*p.density)){this.hat(tsw,0.12*(0.6+0.6*r()),0.03,0.006,(r()-0.5)*1.2);ev.hat=Math.max(ev.hat,0.4);}
-    if(M.c&&(s===4||s===12)){this.clap(t);ev.clap=1;}
-    if(M.h&&(P.openHat||p.energy>0.72) && s%8===6){this.hat(t,0.16,0.3,0.07,0);ev.hat=1;}
+    if(!M.h||(cm==="beatless"&&ca>0.6)){}
+    else if(s%4===2){if(r()>=0.45*ca){this.hat(t,hv*0.38*P.hatAccent[s]*(0.85+0.3*r())*(0.8+0.45*p.energy),0.07,0.012,(r()-0.5)*0.3);ev.hat=1;this.hatBar++;}}
+    else if(s%2===1 && r()<(1-0.8*ca)*P.ghost*Math.min(1.6,0.3+1.5*p.density)){this.hat(tsw,hv*0.12*(0.6+0.6*r()),0.03,0.006,(r()-0.5)*1.2);ev.hat=Math.max(ev.hat,0.4);this.hatBar++;}
+    if(M.c&&cm!=="beatless"&&(cm==="half"?s===8:(s===4||s===12))){this.clap(t,1-0.5*ca);ev.clap=1;}
+    if(M.h&&ca<0.5&&(P.openHat||p.energy>0.72) && s%8===6){this.hat(t,0.16,0.3,0.07,0);ev.hat=1;this.hatBar++;}
     if(!M.p){}
     else if(d.style==="groove"){
       const sw=s%2===1?this.s16*Math.max(0.2,p.swing*0.3):0;
@@ -767,7 +779,7 @@ Object.assign(Engine.prototype,{
   upperStep(st,t,s,deck){const A=deck.arr,r=this.rand;
     if(!A.init)return this.upperClassic(st,t,s,deck);
     if(A.section==="off")return 0;
-    const pv=PATCHES[st][A.variant]||PATCHES[st][0];
+    const pv=A.chillPatch||PATCHES[st][A.variant]||PATCHES[st][0];
     if(pv.n==="classic"){if(A.section==="sparse"&&s!==0&&r()<0.5)return 0;return this.upperClassic(st,t,s,deck);}
     if(r()>Math.min(1,0.55+1.2*this.cond.p.density))return 0;
     return this.playMotif(st,t,s,deck,pv);},
@@ -897,9 +909,17 @@ const PATCHES={
     {n:"acid",ja:"アシッド",special:"acid"},
     {n:"bleeps",ja:"ブリープ",special:"bleep"}]};
 const SECTION_JA={off:"お休み",sparse:"まばら",main:"メイン",intense:"強め"};
+const CHILL_PATCHES=[
+  {n:"chillkeys",ja:"チル・キー（ローズ風）",osc:[["triangle",0,.6],["sine",0,.5]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1500,q:.7,env:1.4,dec:.3},a:{a:.006,d:.6,s:.15,r:.35},lvl:.075,gate:1.6},
+  {n:"dubchord",ja:"ダブ・コード（チル）",osc:[["sawtooth",-8,.5],["sawtooth",8,.5]],chord:[0,3,7,10,14],f:{type:"lowpass",cut:700,q:2,env:2.5,dec:.14},a:{a:.004,d:.3,s:0,r:.12},lvl:.07,gate:.9},
+  {n:"softbell",ja:"ソフト・ベル",fm:{ratio:2,index:1.2,dec:.4},osc:[["sine",0,1]],chord:[0,7],oct:12,a:{a:.004,d:.8,s:0,r:.4},lvl:.075,gate:1.2}];
 const MOTIF_OPS=["移調","ずらし","音を足す","音を抜く","オクターブ","アクセント移動","ゲート／フィルター"];
 
 Object.assign(Engine.prototype,{
+  startChill(to,bars,b0){this.chillGlide={from:this.chillAmt,to,b0,bars:Math.max(1,bars)};},
+  // warm minor-9 pad under a chill episode (8 bars, slow attack, into the pad reverb)
+  chillPad(t,amt){const root=57+keyOff(),bd=16*this.s16,r=this.rand,sets=[[0,3,7,10,14],[-4,0,3,7,10],[-2,2,5,9,12]],ch=sets[Math.floor(r()*sets.length)];
+    for(const iv of ch)this.drone(t,8*bd,{midi:root-12+iv,type:iv<0?"sawtooth":"triangle",det:8,cut:900+500*r(),q:0.7,lvl:0.016*amt,att:Math.min(3,2*bd),rel:2.5,lfo:0.05,depth:300},this.padBus);},
   // per phrase: patch variant (often kept so 16 bars stay related), section every 8 bars, motif development every 4 bars
   arrangeUpper(d){const A=d.arr,r=this.rand,P=PATCHES[d.style],en=this.cond.p.energy,bar=this.bar;
     if(!A.init){A.init=true;A.variant=d.id===0?0:Math.floor(r()*P.length);A.motif=this.newMotif(d);A.section=d.id===0?"sparse":"main";A.lastSec=A.section;return;}
@@ -908,6 +928,10 @@ Object.assign(Engine.prototype,{
       else if(r()<0.3)A.motif=this.newMotif(d);
       A.layer2=r()<0.4?["pad","noise","fx"][Math.floor(r()*3)]:null;
       if(A.layer2&&d.upOn)this.upperLayer2(d,A.layer2,this.lastT||0);}
+    // chill: mellow keys / dub chords take over the 上モノ (only sparse / main sections)
+    if(bar%8===0){const want=this.chillAmt>0.25&&!(this.chillGlide&&this.chillGlide.to<this.chillAmt);
+      if(want&&!A.chillPatch)A.chillPatch=CHILL_PATCHES[Math.floor(r()*CHILL_PATCHES.length)];else if(!want)A.chillPatch=null;
+      if(A.chillPatch){A.section=r()<0.6?"main":"sparse";A.lastSec=A.section;if(r()<0.5)A.motif=this.newMotif(d);return;}}
     if(bar%8===0){const w={off:A.lastSec==="off"?0:(.08+(en<.45?.08:0)),sparse:.28,main:.42,intense:.06+Math.max(0,en-.55)*.7};
       let x=r()*Object.values(w).reduce((a,b)=>a+b,0);for(const [k,v] of Object.entries(w)){x-=v;if(x<=0){A.section=k;break;}}A.lastSec=A.section;}
     else if(bar%4===0)this.developMotif(A.motif);},
@@ -986,7 +1010,7 @@ const SUGGEST=["もっとハードに","少し暗く","一気に盛り上げて"
 
 class Conductor{
   constructor(e){this.e=e;this.p={...PROFILE[e.low.style]};this.glide={};this.events=[];this.mix=null;this.queue=[];
-    this.auto=false;this.hold=false;this.band=S.band;this.pendingBand=null;this.tempoBias=0;this.tempoRate=0.5;this.tempoGoal=null;
+    this.auto=false;this.hold=false;this.band=S.band;this.pendingBand=null;this.tempoBias=0;this.tempoRate=0.5;this.tempoGoal=null;this.chill=null;this.lastChillEnd=-999;this.chillCount=0;
     this.r=mulberry32(e.seed^0xc0ffee);this.lastBreak=null;this.lastKick=null;
     this.log=[];this.logVer=0;this.curSrc=null;this.groups={};this.gseq=0;this.curGid=null;
     this.set=null;this.buildSet("warm",e.low.style);}
@@ -1011,13 +1035,16 @@ class Conductor{
 
   // ---- tempo: band arc (おまかせ) or band centre, pulled 40% toward the style's preferred tempo, drifting <= tempoRate BPM / phrase ----
   tempoTarget(){const B=BANDS[this.band],cur=this.set&&this.set.list[this.set.idx];
-    const base=this.auto&&cur?B.arc[cur.phase]:B.center,st=this.mix&&this.mix.state!=="planned"?this.mix.to:this.e.low.style;
+    const base=this.auto&&cur?(B.arc[cur.phase]??B.arc.release):B.center,st=this.mix&&this.mix.state!=="planned"?this.mix.to:this.e.low.style;
     return Math.max(B.min,Math.min(B.max,0.6*base+0.4*STYLE_BAND[this.band][st].bpm+this.tempoBias));}
   // ---- setlist: warm-up -> build -> peak -> release, styles chosen from the band's pools ----
   buildSet(phase0="warm",first=null){const r=this.r,B=BANDS[this.band],list=[];let prev=first;
     for(const ph of PHASES.slice(PHASES.indexOf(phase0))){const n=ph==="release"?1:(r()<0.55?2:1);
       for(let i=0;i<n;i++){const pool=B.pool[ph].filter(s=>s!==prev),st=(!list.length&&first)?first:pool[Math.floor(r()*pool.length)];
-        list.push({style:st,phase:ph,phrases:(ph==="peak"?3:2)+(r()<0.35?1:0)});prev=st;}}
+        list.push({style:st,phase:ph,phrases:(ph==="peak"?3:2)+(r()<0.35?1:0)});prev=st;
+        // chill episodes: as a breather between two build entries, and (usually) right after the peak
+        if(i===0&&n===2&&(ph==="build"?r()<0.6:ph==="peak"?r()<0.35:false))list.push({style:null,phase:"chill",phrases:1});}
+      if(ph==="peak"&&r()<0.9)list.push({style:null,phase:"chill",phrases:1});}
     this.set={list,idx:0,phr:0,n:(this.set?this.set.n:0)+1};}
   // ---- kick-drop recipe: length × what is removed × fill × riser × impact (band/energy dependent, never the same twice in a row) ----
   kickRecipe(o={}){const r=this.r,hi=this.band==="b140",last=this.lastKick;
@@ -1051,8 +1078,8 @@ class Conductor{
       if(f>=1){delete this.glide[k];const G=this.groups[g.gid];if(G){G.pending.delete(k);this.checkGroup(g.gid,bar,t);}}}
     const due=this.events.filter(x=>x.bar<=bar);this.events=this.events.filter(x=>x.bar>bar);
     for(const ev of due)this.run(ev,t,bar);
-    if(!this.mix&&!this.pendingBand&&this.queue.length){const q=this.queue.shift();this.curSrc=q.src;const ls=[];
-      if(q.band)this.planBand(q.band,bar,ls);else this.planMix(q.style,bar,q.opts);this.curSrc=null;}
+    if(!this.mix&&!this.pendingBand&&!this.chill&&this.queue.length){const q=this.queue.shift();this.curSrc=q.src;const ls=[];
+      if(q.chill)this.planChill(bar,q.chill,ls);else if(q.band)this.planBand(q.band,bar,ls);else this.planMix(q.style,bar,q.opts);this.curSrc=null;}
     if(this.auto&&!this.hold&&bar>0&&bar%16===0)this.autopilot(bar);
   }
 
@@ -1077,14 +1104,39 @@ class Conductor{
     return this.mix;}
   requestStyle(style,o,labels){
     if(style===this.finalStyle()){labels.push(`既に${this.ja(style)}${this.mix?"へ移行中":""}です`);return;}
-    if(this.mix||this.queue.length||this.pendingBand){this.queue.push({style,opts:o,src:this.curSrc});labels.push(`現在の移行が終わったら${this.ja(style)}へ`);return;}
+    if(this.mix||this.queue.length||this.pendingBand||this.chill){this.queue.push({style,opts:o,src:this.curSrc});labels.push(`現在の移行が終わったら${this.ja(style)}へ`);return;}
     const M=this.planMix(style,this.bar,o);
     labels.push(`${M.m-this.bar}小節後から${M.L}小節かけて${this.ja(style)}へミックス（テンポは${BANDS[this.band].ja}のまま）`);}
   // ---- band change: deliberate DJ move, tempo changes ONLY inside a beatless bridge ----
   requestBand(band,labels){
     if(band===(this.pendingBand||this.band)){labels.push(`既に${BANDS[band].ja}セット${this.pendingBand?"へ移行予定":""}です`);return;}
-    if(this.mix||this.pendingBand){this.queue.push({band,src:this.curSrc});labels.push(`現在の移行が終わったら${BANDS[band].ja}セットへ`);return;}
+    if(this.mix||this.pendingBand||this.chill){this.queue.push({band,src:this.curSrc});labels.push(`現在の移行が終わったら${BANDS[band].ja}セットへ`);return;}
     this.planBand(band,this.bar,labels);}
+  // ---- chill episode inside the current band: 8-bar glide down, echo-out, chill core, 8-bar glide back, kick-drop return ----
+  requestChill(o,labels){
+    if(this.chill){labels.push(this.chill.state==="planned"?"チル展開は既に予定されています":"既にチル展開中です");return;}
+    if(this.mix||this.pendingBand||this.queue.length){this.queue.push({chill:o,src:this.curSrc});labels.push("現在の移行が終わったらチル展開へ");return;}
+    this.planChill(this.bar,o,labels);}
+  planChill(bar,o={},labels=[]){const r=this.r;
+    const core=o.fast?this.nextBoundary(bar+9,8,0):this.nextBoundary(bar+10,16,0),inB=core-8;
+    let mode=o.mode;if(!mode){const x=r()*5.5;mode=x<3?"soft4":(x<4.5?"half":"beatless");}
+    const L=mode==="beatless"?16:(o.len||(r()<0.5?16:32)),end=core+L;
+    // clear planned breaks that would collide with the episode
+    this.events=this.events.filter(ev=>{const clash=(ev.type==="break"||ev.type==="drop")&&ev.bar+ev.len>inB&&ev.bar<=end;if(clash)this.logItem(ev.label+"（チル展開のため）",ev.src,"cancel");return !clash;});
+    const R0=this.kickRecipe({len:2});const R={...R0,pos:"end",
+      riser:R0.riser==="none"?(r()<0.5?"noise":"pitch"):R0.riser,impact:R0.impact==="none"?(this.band==="b140"?"crashboom":"crash"):R0.impact,
+      fill:["gap","none"].includes(R0.fill)?(this.band==="b140"?"snareBuild":"revcym"):R0.fill};
+    R.key=[R.len,R.micro,R.remove,R.fill,R.riser,R.impact].join("|");R.name=kdName(R);this.lastKick=R;
+    const mj=CHILL_MODE_JA[mode];
+    this.chill={inB,core,end,L,mode,state:"planned",src:this.curSrc};
+    this.addEvent({bar:inB,type:"chillIn",chill:true,label:`チル展開へ：8小節かけてエネルギー・密度を下げ、キックを丸く（${mj}）`});
+    this.addEvent({bar:core-1,type:"break",len:1,btype:"echo",noImpact:true,chill:true,label:"エコーアウトでチルに入る"});
+    this.addEvent({bar:core,type:"chillCore",chill:true,mode,label:`チル：${mj}・パッド＋ダブ・ディレイ（${L}小節）`});
+    this.addEvent({bar:end-8,type:"chillOut",chill:true,label:"チル明けに向けて8小節かけてエネルギーとキックを戻す"});
+    this.addEvent({bar:end-2,type:"break",len:2,btype:"kick",recipe:R,chill:true,label:`キック抜き（${R.name}）→ チル明け`});
+    this.addEvent({bar:end,type:"chillEnd",chill:true,label:"チル明け：通常のグルーヴに復帰"});
+    labels.push(`${inB-bar}小節後からチル展開：${mj}、${L}小節（${end-bar}小節後に${R.name}で復帰、テンポは${BANDS[this.band].ja}のまま）`);
+    return this.chill;}
   planBand(band,bar,labels){const e=this.e,r=this.r,up=BANDS[band].center>BANDS[this.band].center,len=up?8:6;
     const end=this.nextBoundary(bar,16,len+(up?2:3)),st=end-len,to=BANDS[band].start;
     // drop breaks that would collide with the bridge
@@ -1151,19 +1203,38 @@ class Conductor{
         this.beginGroup(`${BANDS[ev.band].ja}セットの雰囲気へ`,ev.src);
         for(const k of Object.keys(PROFILE[B.style]))this.setParam(k,PROFILE[B.style][k]+(k==="energy"?(ev.up?0.05:-0.08):0),ev.len,bar);
         this.endGroup();break;}
+      case "chillIn":{const C=this.chill;if(!C)break;C.state="in";e.startChill(1,8,bar+1);e.startKickMorph(chillKick(e.low.style,this.band),8,bar+1);
+        this.beginGroup("チルの雰囲気へ",ev.src);
+        const tg={energy:0.22,density:0.28,tension:0.1,space:Math.max(0.8,this.p.space),swing:this.p.swing+0.08,dark:this.p.dark-0.08};
+        for(const k of Object.keys(tg))this.setParam(k,tg[k],8,bar);this.endGroup();break;}
+      case "chillCore":if(this.chill){this.chill.state="core";e.chillMode=ev.mode;}break;
+      case "chillOut":{const C=this.chill;if(!C)break;C.state="out";e.startChill(0,8,bar+1);e.startKickMorph(kickParams(e.low.style,this.band),8,bar+1);
+        const SL=this.set,nx=SL.list[SL.idx+1]||SL.list[SL.idx],ph=nx&&nx.phase!=="chill"?nx.phase:"build",P=PROFILE[e.low.style];
+        this.beginGroup("チル明けの雰囲気へ",ev.src);
+        const tg={energy:Math.max(PHASE_E[ph],P.energy*0.8),density:Math.max(0.45,P.density*0.9),tension:0.5,space:P.space,swing:P.swing,dark:P.dark};
+        for(const k of Object.keys(tg))this.setParam(k,tg[k],8,bar);this.endGroup();break;}
+      case "chillEnd":e.chillMode=null;e.chillAmt=0;e.chillGlide=null;this.chill=null;this.lastChillEnd=bar;this.chillCount++;break;
       case "peakHit":this.beginGroup("ピーク後に緊張感を解放",ev.src);this.setParam("tension",0.25,8,bar);this.endGroup();break;
     }
     this.logItem(ev.done||ev.label,ev.src,"done",bar,t);}
 
   // ---- おまかせ: follow the setlist arc phrase by phrase ----
   autopilot(bar){this.curSrc="おまかせ";try{this.autopilotStep(bar);}finally{this.curSrc=null;this.curGid=null;}}
-  autopilotStep(bar){const r=this.r,SL=this.set;if(!this.mix&&!this.pendingBand)SL.phr++;   // phrases of an entry are counted after its mix-in
+  autopilotStep(bar){const r=this.r,SL=this.set;if(this.chill)return;                // a chill episode runs on its own plan
+    if(!this.mix&&!this.pendingBand)SL.phr++;   // phrases of an entry are counted after its mix-in
     if(this.mix&&this.mix.state==="swapped"&&!this.pendingBand&&r()<0.5){const ls=[];this.planBreak(bar,null,ls,null,"kick",{});}  // second half of a long mix
     if(this.mix||this.pendingBand||this.queue.length)return;   // the mix carries its own atmosphere glide
     let cur=SL.list[SL.idx];
     if(SL.phr>=cur.phrases){
-      SL.idx++;SL.phr=0;if(SL.idx>=SL.list.length){this.buildSet("build",cur.style);this.note(`セットリスト：次のアークを組み直し（${this.set.list.map(x=>this.ja(x.style)).join("→")}）`);}
-      const nx=this.set.list[this.set.idx];
+      const adv=()=>{const S0=this.set;S0.idx++;S0.phr=0;if(S0.idx>=S0.list.length){this.buildSet("build",this.e.low.style);this.note(`セットリスト：次のアークを組み直し（${this.set.list.map(x=>x.phase==="chill"?"チル":this.ja(x.style)).join("→")}）`);}return this.set.list[this.set.idx];};
+      let nx=adv();
+      // chill entry: never back-to-back with a previous chill (>= 48 bars apart), never right at the start
+      while(nx.phase==="chill"&&(bar-this.lastChillEnd<48||bar<48))nx=adv();
+      // long stretch without a breather: slip one in before the next build / release entry (it shows up in the setlist)
+      if(nx.phase!=="chill"&&nx.phase!=="warm"&&bar>=64&&bar-Math.max(0,this.lastChillEnd)>=112){
+        this.set.list.splice(this.set.idx,0,{style:null,phase:"chill",phrases:1});nx=this.set.list[this.set.idx];}
+      if(nx.phase==="chill"){nx.style=this.e.low.style;const ls=[];this.planChill(bar,{},ls);
+        this.note(`セットリスト：チル展開を挟む（${this.ja(nx.style)}のまま、${CHILL_MODE_JA[this.chill.mode]}、${this.chill.L}小節）`);return;}
       if(nx.style!==this.e.low.style){
         const toPeak=nx.phase==="peak"&&cur.phase!=="peak",L=toPeak?32:(r()<0.5?16:32);
         const o=toPeak?{len:32,gap:1,dropLen:8,breakType:"breakdown"}:{len:L,gap:1,dropLen:this.p.energy>0.55?2:(r()<0.6?1:0)};
@@ -1176,7 +1247,7 @@ class Conductor{
     this.setParam("tension",cur.phase==="build"?0.55:(cur.phase==="peak"?0.45:0.25),16,bar);
     this.setParam("dark",this.p.dark+(r()-0.5)*0.15,16,bar);this.setParam("density",clamp01(PHASE_E[cur.phase]+0.05+(r()-0.5)*0.15),16,bar);this.endGroup();
     // phrase-end punctuation: mostly kick-drop recipes (each one different), sometimes another break type
-    const x=r(),ls=[];
+    const x=bar-this.lastChillEnd<8?1:r(),ls=[];  // the chill return already had its kick-drop: no extra punctuation right after it
     if(x<0.6)this.planBreak(bar,null,ls,null,"kick",{});
     else if(x<0.85){const bt=this.pickBreak({});if(bt!=="kick")this.planBreak(bar,null,ls,null,bt,{});else this.planBreak(bar,null,ls,null,"kick",{});}}
 
@@ -1203,20 +1274,26 @@ class Conductor{
     if(/このまま|キープ|維持|ずっと|固定|変えないで/.test(t2)){this.hold=true;
       for(const [gid,g] of Object.entries(this.groups))if(g.pending.size&&+gid!==this.curGid)this.logItem(`${g.label||"雰囲気の変化"}（途中で固定）`,g.src,"cancel");
       this.groups={};this.glide={};
-      for(const q of this.queue)this.logItem(q.band?`${BANDS[q.band].ja}セットへの移行（待機中）`:`${this.ja(q.style)}へのミックス（待機中）`,q.src,"cancel");this.queue=[];
+      for(const q of this.queue)this.logItem(q.chill?"チル展開（待機中）":q.band?`${BANDS[q.band].ja}セットへの移行（待機中）`:`${this.ja(q.style)}へのミックス（待機中）`,q.src,"cancel");this.queue=[];
+      let cc=null;if(this.chill&&this.chill.state==="planned"){cc=this.chill;this.chill=null;this.logItem(`チル展開の計画（${CHILL_MODE_JA[cc.mode]}・${cc.L}小節）`,cc.src,"cancel");}
       const MIXEV=["mixStart","upOut","drop","swap","mixEnd","kickMorph"];let cm=null;
       if(this.mix&&this.mix.state==="planned"){cm=this.mix;this.mix=null;}
-      const keep=e=>this.mix&&MIXEV.includes(e.type);
+      const keep=e=>(this.mix&&MIXEV.includes(e.type))||(e.chill&&!!this.chill);   // a started chill episode always completes
       if(cm)this.logItem(`${this.ja(cm.from)} → ${this.ja(cm.to)} のミックス計画（${cm.L}小節${cm.breakType?"・"+BREAKS[cm.breakType].ja:""}）`,(this.events.find(e=>e.type==="mixStart")||{}).src,"cancel");
       if(this.pendingBand){const be=this.events.find(e=>e.type==="bandSwitch");this.logItem(`${BANDS[this.pendingBand].ja}セットへの移行`,be&&be.src,"cancel");this.pendingBand=null;}
-      for(const ev of this.events)if(!keep(ev)&&!(cm&&MIXEV.includes(ev.type))&&ev.type!=="bandSwitch"&&!(ev.btype==="bridge"))this.logItem(ev.label,ev.src,"cancel");
+      for(const ev of this.events)if(!keep(ev)&&!(cm&&MIXEV.includes(ev.type))&&!(cc&&ev.chill)&&ev.type!=="bandSwitch"&&!(ev.btype==="bridge"))this.logItem(ev.label,ev.src,"cancel");
       this.events=this.events.filter(keep);
       this.logItem("ホールド開始：今の状態をキープ",this.curSrc);
-      labels.push("ホールド：今の状態をキープ（進行中のミックスのみ完了させる）");return {ok:true,labels,hold:true,planned:true};}
+      labels.push("ホールド：今の状態をキープ（進行中のミックス／チル展開のみ完了させる）");return {ok:true,labels,hold:true,planned:true};}
     this.hold=false;
     const BAND_HI=/140帯|140|ハイテンポ|速めのセット|速いセット|アップテンポ|高速/,BAND_LO=/120帯|125帯|120|ゆったりめ|遅めのセット|ゆっくりめ|ミドルテンポ/;
     if(BAND_HI.test(t2)){this.requestBand("b140",labels);hit=true;t2=t2.replace(new RegExp("("+BAND_HI.source+")(帯)?(で|に|へ)?(上げて|下げて|落として|移って|変えて|行って|して|戻して)?","g"),"");}
     else if(BAND_LO.test(t2)){this.requestBand("b120",labels);hit=true;t2=t2.replace(new RegExp("("+BAND_LO.source+")(帯)?(で|に|へ)?(上げて|下げて|落として|移って|変えて|行って|して|戻して)?","g"),"");}
+    // chill episode on demand (checked before breaks / calm words so 休憩 / まったり are not read as a break)
+    const CHILL_RE=/チル|休憩|一息|ひと息|まったり|クールダウン|小休止/;
+    if(CHILL_RE.test(t2)){const mode=/ビートレス|ビートなし|アンビエント/.test(t2)?"beatless":(/ハーフ/.test(t2)?"half":(/4つ打ち|四つ打ち|キックは?残/.test(t2)?"soft4":null));
+      this.requestChill({mode,len:/長め|長い|がっつり|ガッツリ/.test(tx)?32:(/短め|短い|ちょっと|少し/.test(tx)?16:null),fast},labels);hit=true;
+      t2=t2.replace(/(ビートレス|ビートなし|アンビエント|ハーフタイム|ハーフ|4つ打ち|四つ打ち)(で|の)?/g,"").replace(/(チル|休憩|一息|ひと息|まったり|クールダウン|小休止)(展開)?(に|へ|で|を)?(して|入れて|挟んで|させて|しよう|したい)?/g,"");}
     const B=BANDS[this.band];
     const tempo=d=>{this.tempoBias=Math.max(-4,Math.min(4,this.tempoBias+d));this.tempoRate=1;const to=this.tempoTarget();
       this.tempoGoal={label:`テンポ ${to.toFixed(1)} BPM`,src:this.curSrc};labels.push(`テンポ${d>0?"↑":"↓"}（${B.ja}の中で ${to.toFixed(1)} BPM へ、1フレーズ1 BPM 以内でゆっくり）`);hit=true;};
@@ -1308,18 +1385,22 @@ function updatePanel(){
   renderBand();
   const SL=C.set,cur=SL.list[SL.idx];
   $("setlist").innerHTML=`<span class="bd">${BANDS[C.band].ja}${C.pendingBand?" → "+BANDS[C.pendingBand].ja:""}</span><span class="ph">セットリスト${C.auto?"":"（おまかせ時）"}：</span>`+
-    SL.list.slice(SL.idx,SL.idx+5).map((x,i)=>`<i class="${i===0?"cur":""}">${esc(C.ja(x.style))}<small>${PHASE_JA[x.phase]}${i===0?` ${Math.min(SL.phr,x.phrases)}/${x.phrases}`:""}</small></i>`).join("");
-  $("arc").innerHTML=PHASES.map(ph=>`<span class="${cur&&cur.phase===ph?"on":""}">${PHASE_JA[ph]}</span>`).join("");
+    SL.list.slice(SL.idx,SL.idx+5).map((x,i)=>`<i class="${i===0?"cur":""}${x.phase==="chill"?" ch":""}">${x.phase==="chill"?"☾ "+esc(x.style?C.ja(x.style):"チル"):esc(C.ja(x.style))}<small>${PHASE_JA[x.phase]}${i===0?` ${Math.min(SL.phr,x.phrases)}/${x.phrases}`:""}</small></i>`).join("");
+  const chOn=C.chill&&C.chill.state!=="planned";
+  $("arc").innerHTML=[...PHASES.slice(0,3),"chill","release"].map(ph=>`<span class="${(ph==="chill"?chOn:(!chOn&&cur&&cur.phase===ph))?"on":""}${ph==="chill"?" ch":""}">${PHASE_JA[ph]}</span>`).join("");
   $("upinfo").textContent="上モノ："+eng.decks.filter(d=>d.upOn&&d.arr.init).map(d=>`${C.ja(d.style)}＝${(PATCHES[d.style][d.arr.variant]||{}).ja}・${SECTION_JA[d.arr.section]}`).join(" ／ ");
   if(M){const pr=Math.max(0,Math.min(1,(b-M.m)/M.L));$("mixbar").style.width=(pr*100)+"%";
     $("mixinfo").textContent=b<M.m?`${M.m-b}小節後にミックス開始（${C.ja(M.from)} → ${C.ja(M.to)}、${M.L}小節）`:
       `ミックス中 ${Math.round(pr*100)}%：${C.ja(M.from)} → ${C.ja(M.to)}（${M.state==="swapped"?"キック＋ベース交換済み":"交換まで"+(M.swap-b)+"小節"}）`;}
+  else if(C.chill){const H=C.chill,pr=Math.max(0,Math.min(1,(b-H.inB)/(H.end-H.inB)));$("mixbar").style.width=(pr*100)+"%";
+    $("mixinfo").textContent=H.state==="planned"?`${H.inB-b}小節後にチル展開（${CHILL_MODE_JA[H.mode]}、${H.L}小節）`:
+      `チル展開中：${CHILL_MODE_JA[H.mode]}（${H.state==="out"?"復帰に向けて上昇中":H.state==="in"?"チルへ移行中":"チル"}、${Math.max(0,H.end-b)}小節後に復帰）`;}
   else{$("mixbar").style.width="0";$("mixinfo").textContent=C.pendingBand?`${BANDS[C.pendingBand].ja}セットへ移行準備中（ビートレス区間でテンポ切替）`:(C.queue.length?"次のミックスを準備中":"ミックスなし");}
   for(const k of METERS){const el=$("m-"+k);el.firstChild.style.width=(C.p[k]*100)+"%";el.lastChild.style.left=`calc(${C.target(k)*100}% - 1px)`;}
   const D=eng.drop;const items=[];
   if(D.active)items.push(`<li><span>ブレイク中</span><span>${D.type==="kick"&&D.recipe&&D.recipe.name!=="手動"?"キック抜き（"+D.recipe.name+"）":BREAKS[D.type].ja}${D.endBar>0?`（${D.len}小節、残り${Math.max(1,D.endBar-b)}小節）`:"（手動）"}</span></li>`);
   items.push(...C.events.map(e=>`<li><span>${e.bar-b<=0?"まもなく":"あと"+(e.bar-b)+"小節"}</span><span>${e.label}</span></li>`));
-  if(C.queue.length)items.push(...C.queue.map(q=>`<li><span>その後</span><span>${q.band?BANDS[q.band].ja+"セットへ移行":C.ja(q.style)+"へミックス"}</span></li>`));
+  if(C.queue.length)items.push(...C.queue.map(q=>`<li><span>その後</span><span>${q.chill?"チル展開":q.band?BANDS[q.band].ja+"セットへ移行":C.ja(q.style)+"へミックス"}</span></li>`));
   if(C.auto&&!items.length&&cur)items.push(`<li><span>おまかせ</span><span>${PHASE_JA[cur.phase]}：${C.ja(cur.style)}（${Math.min(SL.phr,cur.phrases)}/${cur.phrases}フレーズ）→ 次は${SL.list[SL.idx+1]?C.ja(SL.list[SL.idx+1].style):"アークを組み直し"}</span></li>`);
   $("timeline").innerHTML=items.length?items.join(""):`<li><span>—</span><span>${C.hold?"ホールド中：このままキープ":"予定なし（意図を送ると計画されます）"}</span></li>`;
   if(C.logVer!==shownLogVer){shownLogVer=C.logVer;renderLog(C.log);}
@@ -1348,7 +1429,7 @@ requestAnimationFrame(draw);
 // ---------- UI ----------
 function setPlayUI(on){const b=$("play");b.textContent=on?"■ ストップ":"▶ スタート";b.classList.toggle("on",on);if(!on)$("status").textContent="停止中";}
 $("play").addEventListener("click",()=>{playing?stop():start();});
-const INTENT_BTNS=["盛り上げて","もっとハードに","落ち着かせて","暗く","明るく","グルーヴを出して","トライバルに","ミニマルに戻して","ブレイク入れて","ピークを作って","ずっとこのまま","ブレイクビート風に","120帯で","140帯で","少しテンポを上げて","少しテンポを下げて"];
+const INTENT_BTNS=["盛り上げて","もっとハードに","落ち着かせて","暗く","明るく","グルーヴを出して","トライバルに","ミニマルに戻して","ブレイク入れて","ピークを作って","ずっとこのまま","ブレイクビート風に","120帯で","140帯で","少しテンポを上げて","少しテンポを下げて","チルに","ちょっと休憩","ハーフタイムでチル","ビートレスで一息"];
 $("intents").innerHTML=INTENT_BTNS.map(t=>`<button data-intent="${t}">${t}</button>`).join("");
 $("intents").addEventListener("click",e=>{const b=e.target.closest("button");if(b)sendIntent(b.dataset.intent);});
 const QUICK_BRK=["おまかせ",...BREAK_ORDER];
@@ -1418,7 +1499,8 @@ window.__renderOffline=async function(o){
       kicks:kl.length,minKickGap:+minGap.toFixed(4),kicksFromTwoDecksNear:diffDeckNear,bassNotes:bl.length,bassTwoDecksNear:bassDiffNear,bassOldDeckAfterSwap:bassOldAfterSwap,
       swaps:swaps.map(x=>+x[0].toFixed(2)),maxBpmStepPerBar:+maxBpmStep.toFixed(3),
       bpmPath:e.bpmLog.filter((x,i)=>i%4===0).map(x=>`${x[0]}:${x[1].toFixed(1)}:${x[3]}`).join(" "),segs,breaks:e.breakLog.map(x=>`${x.type}@${x.bar}x${x.len}`),intents:res,
-      bpmLog:o.full?e.bpmLog:undefined,kickTimes:o.full?kl.map(x=>+x[0].toFixed(4)):undefined,kpLog:o.full?e.kpLog:undefined,arrLog:o.full?e.arrLog:undefined,upLog:o.full?e.upLog:undefined,
+      bpmLog:o.full?e.bpmLog:undefined,chillLog:o.full?e.chillLog:undefined,chillCount:e.cond.chillCount,
+      barD2:o.full?(()=>{const out=[];for(const T of barT){let d2=0;const a=Math.max(2,Math.round((T-0.025)*sr)),z=Math.min(n,Math.round((T+0.025)*sr));for(let i=a;i<z;i++)d2=Math.max(d2,Math.abs(L[i]-2*L[i-1]+L[i-2]),Math.abs(R[i]-2*R[i-1]+R[i-2]));out.push(+d2.toFixed(3));}return out;})():undefined,kickTimes:o.full?kl.map(x=>+x[0].toFixed(4)):undefined,kpLog:o.full?e.kpLog:undefined,arrLog:o.full?e.arrLog:undefined,upLog:o.full?e.upLog:undefined,
       breakFull:e.breakLog.map(x=>({type:x.type,bar:x.bar,len:x.len,key:x.recipe,name:x.name})),returnTimes:e.returnTimes.map(x=>+x.toFixed(4)),band:e.cond.band,
       set:e.cond.set.list.map(x=>`${x.phase}:${x.style}x${x.phrases}`),log:e.cond.log.slice().reverse().map(x=>`[${x.bar}] ${x.status==="cancel"?"取消 ":""}${x.text} ← ${x.src}`)};
   }finally{Object.assign(S,JSON.parse(saved));}
