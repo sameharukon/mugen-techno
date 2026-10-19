@@ -72,7 +72,6 @@ input[type=range]{width:100%;accent-color:var(--acc)}
 <div class="sub">数値ではなく「どうしたいか」を伝えてください。指揮者（コンダクター）がフレーズ単位でDJのように少しずつ変えていきます。セットは120帯／140帯のテンポ帯ごとに組まれ、帯の中でゆっくり流れます。ブレイクは種類を指定することも、おまかせにすることもできます。終わった予定は「消化した予定」に残ります。（スペース：再生/停止 ・ K：キック抜き）</div>
 <div class="top">
   <button id="play" class="play">▶ スタート</button>
-  <button id="auto" class="tog">おまかせ：オフ</button>
   <div class="bandsel" title="セットのテンポ帯（途中で切り替えるとビートレスのブリッジでテンポを移行）"><button id="bandb120" data-band="b120" class="on">120帯</button><button id="bandb140" data-band="b140">140帯</button></div>
   <div class="vol">音量 <input id="vol" type="range" min="0" max="1" step="0.01" value="0.8"></div>
   <span class="status" id="status">停止中</span>
@@ -1199,9 +1198,9 @@ class Conductor{
     const delta=(key,d)=>{const to=this.target(key)+d*k;this.setParam(key,to,gb,start);labels.push(`${PARAM_JA[key]}${arrows(d*k)}`);hit=true;};
     const style=st=>{this.requestStyle(st,mixO,labels);hit=true;};
     let t2=tx.replace(/ハードグル[ーｰ]?[ヴブ]/g,"グルーヴ");
-    if(/(おまかせ|お任せ|自動|オート).*(やめ|オフ|解除|止め|終わ)|手動に/.test(t2)){this.auto=false;labels.push("おまかせ オフ");hit=true;t2=t2.replace(/おまかせ|お任せ|自動|オート/g,"");}
+    if(/(おまかせ|お任せ|自動|オート).*(やめ|オフ|解除|止め|終わ)|手動に/.test(t2)){labels.push("おまかせは常にオン");hit=true;t2=t2.replace(/おまかせ|お任せ|自動|オート/g,"");}
     else if(/おまかせ|お任せ|任せ|自動|オート|djして|勝手に/.test(t2)){this.auto=true;this.hold=false;labels.push(`おまかせ オン（${BANDS[this.band].ja}のセットリストに沿って進行）`);hit=true;}
-    if(/このまま|キープ|維持|ずっと|固定|変えないで/.test(t2)){this.hold=true;this.auto=false;
+    if(/このまま|キープ|維持|ずっと|固定|変えないで/.test(t2)){this.hold=true;
       for(const [gid,g] of Object.entries(this.groups))if(g.pending.size&&+gid!==this.curGid)this.logItem(`${g.label||"雰囲気の変化"}（途中で固定）`,g.src,"cancel");
       this.groups={};this.glide={};
       for(const q of this.queue)this.logItem(q.band?`${BANDS[q.band].ja}セットへの移行（待機中）`:`${this.ja(q.style)}へのミックス（待機中）`,q.src,"cancel");this.queue=[];
@@ -1253,7 +1252,7 @@ class Conductor{
 
 // ---------- Live transport (worker-tick lookahead scheduler) ----------
 const LOOKAHEAD=0.1,TICK_MS=25;
-let ctx=null,eng=null,ticker=null,playing=false,pendingIntents=[],autoWanted=false;
+let ctx=null,eng=null,ticker=null,playing=false,pendingIntents=[],autoWanted=true;
 function makeTicker(fn){
   try{const src="let id=null;onmessage=e=>{if(e.data==='start'){clearInterval(id);id=setInterval(()=>postMessage('t'),"+TICK_MS+");}else{clearInterval(id);id=null;}};";
     const w=new Worker(URL.createObjectURL(new Blob([src],{type:"text/javascript"})));w.onmessage=fn;
@@ -1325,7 +1324,6 @@ function updatePanel(){
   $("timeline").innerHTML=items.length?items.join(""):`<li><span>—</span><span>${C.hold?"ホールド中：このままキープ":"予定なし（意図を送ると計画されます）"}</span></li>`;
   if(C.logVer!==shownLogVer){shownLogVer=C.logVer;renderLog(C.log);}
   $("holdinfo").textContent=C.hold?"ホールド中":(C.auto?"おまかせ中":"");
-  $("auto").textContent="おまかせ："+(C.auto?"オン":"オフ");$("auto").classList.toggle("on",C.auto);
 }
 function draw(){
   requestAnimationFrame(draw);
@@ -1373,7 +1371,6 @@ function renderBand(){const b=eng?eng.cond.band:S.band,pb=eng?eng.cond.pendingBa
   for(const k of Object.keys(BANDS)){const el=$("band"+k);el.classList.toggle("on",k===b);el.textContent=BANDS[k].ja+(k===pb?"…":"");}}
 $("bandb120").parentNode.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
   if(eng)sendIntent(BANDS[b.dataset.band].ja+"で");else{S.band=b.dataset.band;renderBand();$("bpm").textContent=`${BANDS[S.band].start} BPM`;$("nowStyle").textContent=styleJa(BANDS[S.band].first);}});
-$("auto").addEventListener("click",()=>{if(eng){sendIntent(eng.cond.auto?"おまかせやめて":"おまかせ");}else{autoWanted=!autoWanted;$("auto").textContent="おまかせ："+(autoWanted?"オン":"オフ");$("auto").classList.toggle("on",autoWanted);}});
 function bind(id,key,fmt,after){const el=$(id);const upd=()=>{S[key]=+el.value;const v=$("v-"+id);if(v)v.textContent=fmt(S[key]);if(after)after();};el.addEventListener("input",upd);upd();}
 bind("vol","vol",v=>v,()=>eng&&eng.applyParams());
 let dropDownAt=0,dropArmedByThisPress=false;

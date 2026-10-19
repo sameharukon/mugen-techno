@@ -26,7 +26,7 @@ console.log('mixinfo:', await p.textContent('#mixinfo'), '| now/next:', await p.
 await p.screenshot({path:'/workspace/techno/live/test/screenshot.png', fullPage:true});
 await p.click('[data-intent="トライバルに"]'); console.log('トライバルに ->', await p.textContent('#interp'));
 await p.click('[data-intent="ずっとこのまま"]'); console.log('hold ->', await p.textContent('#interp')); await st('hold');
-await p.click('#auto'); console.log('auto ->', await p.textContent('#interp'), await p.textContent('#auto'));
+console.log('auto fixed ->', await p.evaluate(()=>eng.cond.auto));
 await p.click('[data-intent="ピークを作って"]'); console.log('peak ->', await p.textContent('#interp'));
 await p.click('[data-intent="ブレイク入れて"]'); console.log('break ->', await p.textContent('#interp'));
 for (const t of ['グルーヴを出して','ミニマルに戻して','落ち着かせて','ブレイクビート風に']) { await p.click(`[data-intent="${t}"]`); console.log(t,'->',await p.textContent('#interp')); }
