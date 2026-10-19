@@ -765,7 +765,7 @@ class Engine{
       for(const s of [0,4,8,12])k[s]=d.style==="hard"?0.75:0.9;
       if(d.style==="hard"&&this.bar%8===7){k[8]=0;k[12]=0;}                                              // ambient: the beat breathes
       return k;}
-    if(d.style==="broken"){for(const s of P.broken)k[s]=s===0?1:0.9;return k;}
+    if(d.style==="broken"||(this.flav&&d===this.low&&this.bar>=this.flav.from&&this.bar<this.flav.until)){for(const s of P.broken)k[s]=s===0?1:0.9;return k;}
     for(const s of [0,4,8,12])k[s]=1;
     if(d.band==="b160"&&d.style==="hard"&&this.bar%4===3&&r()<0.45){k[14]=0.7;if(r()<0.5)k[15]=0.6;}   // gabber pickup into the next phrase
     if(d.style==="groove"){
@@ -797,6 +797,7 @@ class Engine{
       if(D.active && !D.armed && D.type==="kick" && (D.src==="manual"||this.bar>=D.endBar||S.dropManual)){D.src="manual";D.endBar=-1;}
       C.onBar(this.bar,t);                          // conductor: intents, phrase plans, DJ mix events
       this.applyBarParams(t);
+      this.flavourBar(t);
       for(const d of this.decks){d.pat.nextBar(v);d.kickBar=this.buildKickBar(d);this.arrangeUpper(d);
         if(d.loopBP){const ph=((this.bar+d.id*5)%8)/8,f=(650+2600*(0.5-0.5*Math.cos(2*Math.PI*ph)))*Math.pow(2,(0.5-p.dark)*0.8);d.loopBP.frequency.setTargetAtTime(Math.min(6000,f),t,0.6);}}
       if(this.debug)this.arrLog.push([this.bar,this.decks.map(d=>[d.id,d.style,(d.arr.chillPatch||patchList(d)[d.arr.variant]).n,d.arr.section,d.arr.motif?d.arr.motif.id:0,d.arr.layer2&&this.bar%16===0?d.arr.layer2:"",d.arr.chillPatch?d.arr.chillPatch.n:""])]);
@@ -1090,6 +1091,17 @@ Object.assign(Engine.prototype,{
 });
 
 
+// ---------- v16: broken-beat flavour (techno bands): 8 or 16 bars of the broken kick on the current four-on-the-floor deck, rare + well spaced ----------
+Object.assign(Engine.prototype,{
+  flavourBar(t){const C=this.cond,D=this.drop,bar=this.bar,L=this.low;
+    if(this.flav&&(bar>=this.flav.until||C.closing||C.mix)){const end=this.flav;this.flav=null;if(bar<end.until)this.flavCool=bar+128;C.logItem("ブレイクビート風のキック：4つ打ちに戻る","おまかせ","done",bar,t);}
+    if(this.flav||!C.auto||bar%16!==0||bar<64||L.band==="bchill"||L.style==="broken"||bar<(this.flavCool||0))return;
+    if(D.active||C.mix||C.chill||C.pendingBand||C.closing||C.opening||C.events.some(x=>x.bar>=bar&&x.bar<bar+16&&(["mixStart","swap","bandSwitch","chillIn","chillCore"].includes(x.type)||(x.type==="break"&&["breakdown","bridge","halftime"].includes(x.btype)))))return;
+    if(this.rand()>0.14)return;
+    const len=this.rand()<0.6?8:16;this.flav={from:bar,until:bar+len};this.flavCool=bar+len+128;    // >= 8 phrases between two flavours
+    C.logItem(`ブレイクビート風のキック ${len}小節（フレーバー）`,"おまかせ","done",bar,t);}
+});
+
 // ---------- v15: chiptune colour layer (occasional spice: pulse/duty leads, NES-style arps, noise ticks, light bit-crush) ----------
 const CHIP_P={b120:.5,bchill:.5,b140:.42,b160:.26};       // chance per free 16-bar phrase line (after a cooldown)
 const CHIP_DUTY=[0.125,0.25,0.5],CHIP_DUTY_JA={0.125:"12.5%",0.25:"25%",0.5:"50%"};
@@ -1109,7 +1121,8 @@ Object.assign(Engine.prototype,{
   chipBar(t){const C=this.chip,D=this.drop,bar=this.bar,bd=16*this.s16,cd=this.cond;
     const blocked=!!(cd.closing||cd.opening||this.closed||cd.pendingBand||(D.active&&["bridge","intro","outro","breakdown"].includes(D.type)));
     const stop=!!(cd.closing||cd.opening||this.closed||(D.active&&["bridge","intro","outro"].includes(D.type)));   // a running segment only yields to bridge / opening / closing
-    if(C.on){if(stop||bar>=C.end||!this.decks.includes(C.deck))this.chipOff(t,stop?0.25:bd*0.3);
+    if(C.on&&!this.decks.includes(C.deck))C.deck=this.low;   /* v16: the deck it started on left the mix: carry on with the new one (same / neighbouring key) */
+    if(C.on){if(stop||bar>=C.end)this.chipOff(t,stop?0.25:bd*0.3);
       else{if(bar===C.end-1)this.chipFadeOut(t,bd);if((bar-C.start)%4===0&&bar>C.start)this.developMotif(C.M,C.deck);
         if(!C.chill&&this.rand()<0.12)C.duty=CHIP_DUTY[Math.floor(this.rand()*3)];}
       return;}
@@ -1456,11 +1469,14 @@ class Conductor{
     for(const ph of PHASES.slice(PHASES.indexOf(phase0))){const n=ph==="release"?1:(r()<0.55?2:1);
       for(let i=0;i<n;i++){let pool=B.pool[ph].filter(s=>s!==prev);
         if(B.noChill){const used=new Set([...(this.usedCh||[]),...list.map(x=>x.style)]),fresh=pool.filter(s=>!used.has(s));if(fresh.length)pool=fresh;}   // chill band: variety — prefer styles not heard yet
-        const st=(!list.length&&first)?first:pool[Math.floor(r()*pool.length)];
-        list.push({style:st,phase:ph,phrases:(ph==="peak"?3:2)+(r()<0.35?1:0)});prev=st;
-        // chill episodes: as a breather between two build entries, and (usually) right after the peak
-        if(!B.noChill&&i===0&&n===2&&(ph==="build"?r()<0.6:ph==="peak"?r()<0.35:false))list.push({style:null,phase:"chill",phrases:1});}
-      if(!B.noChill&&ph==="peak"&&r()<0.9)list.push({style:null,phase:"chill",phrases:1});}
+        // v16: four-on-the-floor first — the broken-kick style is a rare flavour (never two entries apart), one phrase long in the techno bands
+        const recentBroken=list.slice(-2).some(x=>x.style==="broken")||(this.lastBrokenSet!=null&&this.set&&this.set.n-this.lastBrokenSet<1&&!list.length);
+        const W=pool.map(s=>s==="broken"?(recentBroken||!B.noChill?0:0.35):1);   /* techno bands: the broken groove comes as a short in-style flavour instead (Engine.flavourBar) */let st;
+        const Wt=W.reduce((a,b)=>a+b,0);if(!list.length&&first)st=first;else if(Wt<=0){const alt=B.pool[ph].filter(s=>s!=="broken");st=alt.length?alt[Math.floor(r()*alt.length)]:pool[0];}else{let x=r()*Wt;st=pool.find((s,j)=>W[j]>0&&(x-=W[j])<=0)||pool.find(s=>s!=="broken")||pool[0];}
+        list.push({style:st,phase:ph,phrases:st==="broken"&&!B.noChill?1:(ph==="peak"?3:2)+(r()<0.35?1:0)});prev=st;
+        // chill episodes (v16: rarer): as a breather between two build entries, and sometimes right after the peak
+        if(!B.noChill&&i===0&&n===2&&(ph==="build"?r()<0.2:ph==="peak"?r()<0.15:false))list.push({style:null,phase:"chill",phrases:1});}
+      if(!B.noChill&&ph==="peak"&&r()<0.45)list.push({style:null,phase:"chill",phrases:1});}
     if(B.noChill){const u=new Set([...(this.usedCh||[]),...list.map(x=>x.style)]);this.usedCh=u.size>=5?list.slice(-1).map(x=>x.style):[...u];}
     this.set={list,idx:0,phr:0,n:(this.set?this.set.n:0)+1};}
   // ---- kick-drop recipe: length × what is removed × fill × riser × impact (band/energy dependent, never the same twice in a row) ----
@@ -1539,8 +1555,8 @@ class Conductor{
     this.planChill(this.bar,o,labels);}
   planChill(bar,o={},labels=[]){const r=this.r;
     const core=o.fast?this.nextBoundary(bar+9,8,0):this.nextBoundary(bar+10,16,0),inB=core-8;
-    let mode=o.mode;if(!mode){const W=BANDS[this.band].chillW||{soft4:3,half:1.5,beatless:1};let x=r()*(W.soft4+W.half+W.beatless);mode=(x-=W.soft4)<0?"soft4":(x-W.half<0?"half":"beatless");}
-    const L=mode==="beatless"?16:(o.len||(r()<0.5?16:32)),end=core+L;
+    let mode=o.mode;if(!mode){const W=BANDS[this.band].chillW||(o.auto?{soft4:4,half:1,beatless:1}:{soft4:3,half:1.5,beatless:1});let x=r()*(W.soft4+W.half+W.beatless);mode=(x-=W.soft4)<0?"soft4":(x-W.half<0?"half":"beatless");}
+    const L=o.auto&&!BANDS[this.band].noChill?(mode==="beatless"?8:(r()<0.6?8:16)):(mode==="beatless"?16:(o.len||(r()<0.5?16:32))),end=core+L;   // v16: autopilot episodes in the techno bands are short
     // clear planned breaks that would collide with the episode
     this.events=this.events.filter(ev=>{const clash=(ev.type==="break"||ev.type==="drop")&&ev.bar+ev.len>inB&&ev.bar<=end;if(clash)this.logItem(ev.label+"（チル展開のため）",ev.src,"cancel");return !clash;});
     const R0=this.kickRecipe({len:2});const R={...R0,pos:"end",
@@ -1687,14 +1703,14 @@ class Conductor{
       const adv=()=>{const S0=this.set;S0.idx++;S0.phr=0;if(S0.idx>=S0.list.length){this.buildSet("build",this.e.low.style);this.note(`セットリスト：次のアークを組み直し（${this.set.list.map(x=>x.phase==="chill"?"チル":this.ja(x.style)).join("→")}）`);}return this.set.list[this.set.idx];};
       let nx=adv();
       // chill entry: never back-to-back with a previous chill (>= 48 bars apart), never right at the start
-      while(nx.phase==="chill"&&(bar-this.lastChillEnd<48||bar<48||BANDS[this.band].noChill))nx=adv();
+      while(nx.phase==="chill"&&(bar-this.lastChillEnd<96||bar<64||BANDS[this.band].noChill))nx=adv();   // v16: >= 6 phrases between chill episodes
       // long stretch without a breather: slip one in before the next build / release entry (it shows up in the setlist)
-      if(!BANDS[this.band].noChill&&nx.phase!=="chill"&&nx.phase!=="warm"&&bar>=64&&bar-Math.max(0,this.lastChillEnd)>=112){
+      if(!BANDS[this.band].noChill&&nx.phase!=="chill"&&nx.phase!=="warm"&&bar>=64&&bar-Math.max(0,this.lastChillEnd)>=128){
         this.set.list.splice(this.set.idx,0,{style:null,phase:"chill",phrases:1});nx=this.set.list[this.set.idx];}
-      if(nx.phase==="chill"){nx.style=this.e.low.style;const ls=[];this.planChill(bar,{},ls);
+      if(nx.phase==="chill"){nx.style=this.e.low.style;const ls=[];this.planChill(bar,{auto:true},ls);
         this.note(`セットリスト：チル展開を挟む（${this.ja(nx.style)}のまま、${CHILL_MODE_JA[this.chill.mode]}、${this.chill.L}小節）`);return;}
       if(nx.style!==this.e.low.style){
-        const toPeak=nx.phase==="peak"&&cur.phase!=="peak",L=toPeak?32:(r()<0.5?16:32);
+        const brk=nx.style==="broken"||cur.style==="broken",toPeak=nx.phase==="peak"&&cur.phase!=="peak"&&!brk,L=toPeak?32:(brk&&this.band!=="bchill"?16:(r()<0.5?16:32));
         const o=toPeak?(this.band==="bchill"?{len:32,gap:1,dropLen:4,breakType:"filter"}:{len:32,gap:1,dropLen:8,breakType:"breakdown"}):{len:L,gap:1,dropLen:this.p.energy>0.55?2:(r()<0.6?1:0)};
         this.planMix(nx.style,bar,o);
         this.note(`セットリスト：${phJa(nx.phase,this.band)}へ → ${this.ja(nx.style)}（${L}小節ミックス${toPeak?(this.band==="bchill"?"＋フィルターブレイク":"＋ブレイクダウン"):""}）`);return;}
@@ -1707,7 +1723,7 @@ class Conductor{
     this.setParam("dark",this.p.dark+(r()-0.5)*0.15,16,bar);this.setParam("density",clamp01(pe+0.05+(r()-0.5)*0.15),16,bar);
     if(calm)this.setParam("space",Math.max(0.75,this.p.space),16,bar);this.endGroup();
     // phrase-end punctuation: mostly kick-drop recipes (each one different), sometimes another break type
-    const x=bar-this.lastChillEnd<8?1:r(),ls=[],pk=this.band==="bchill"?0.45:0.6,po=this.band==="bchill"?0.75:0.85;  // the chill return already had its kick-drop
+    const x=bar-this.lastChillEnd<8?1:r(),ls=[],pk=this.band==="bchill"?0.45:0.42,po=this.band==="bchill"?0.75:0.6;   // v16: techno bands punctuate a little less  // the chill return already had its kick-drop
     if(x<pk)this.planBreak(bar,null,ls,null,"kick",{});
     else if(x<po){const bt=this.pickBreak({});if(bt!=="kick")this.planBreak(bar,null,ls,null,bt,{});else this.planBreak(bar,null,ls,null,"kick",{});}}
 
