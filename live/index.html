@@ -72,7 +72,6 @@ input[type=range]{width:100%;accent-color:var(--acc)}
 <div class="sub">数値ではなく「どうしたいか」を伝えてください。指揮者（コンダクター）がフレーズ単位でDJのように少しずつ変えていきます。セットは120帯／140帯のテンポ帯ごとに組まれ、帯の中でゆっくり流れます。ブレイクは種類を指定することも、おまかせにすることもできます。終わった予定は「消化した予定」に残ります。（スペース：再生/停止 ・ K：キック抜き）</div>
 <div class="top">
   <button id="play" class="play">▶ スタート</button>
-  <button id="drop" class="drop">キック抜き（K）</button>
   <button id="auto" class="tog">おまかせ：オフ</button>
   <div class="bandsel" title="セットのテンポ帯（途中で切り替えるとビートレスのブリッジでテンポを移行）"><button id="bandb120" data-band="b120" class="on">120帯</button><button id="bandb140" data-band="b140">140帯</button></div>
   <div class="vol">音量 <input id="vol" type="range" min="0" max="1" step="0.01" value="0.8"></div>
@@ -1378,11 +1377,9 @@ $("auto").addEventListener("click",()=>{if(eng){sendIntent(eng.cond.auto?"おま
 function bind(id,key,fmt,after){const el=$(id);const upd=()=>{S[key]=+el.value;const v=$("v-"+id);if(v)v.textContent=fmt(S[key]);if(after)after();};el.addEventListener("input",upd);upd();}
 bind("vol","vol",v=>v,()=>eng&&eng.applyParams());
 let dropDownAt=0,dropArmedByThisPress=false;
-function setDrop(on){S.dropManual=on;$("drop").classList.toggle("on",on);$("drop").textContent=on?"キック抜き中…（K）":"キック抜き（K）";}
+function setDrop(on){S.dropManual=on;}
 function dropDown(){if(S.dropManual){setDrop(false);dropArmedByThisPress=false;}else{setDrop(true);dropArmedByThisPress=true;dropDownAt=performance.now();}}
 function dropUp(){if(dropArmedByThisPress&&performance.now()-dropDownAt>350)setDrop(false);dropArmedByThisPress=false;}
-$("drop").addEventListener("pointerdown",e=>{e.preventDefault();dropDown();});
-$("drop").addEventListener("pointerup",dropUp);$("drop").addEventListener("pointerleave",()=>{if(dropArmedByThisPress)dropUp();});
 document.addEventListener("keydown",e=>{if(e.target.tagName==="INPUT"&&e.target.type==="text")return;
   if(e.code==="Space"){e.preventDefault();$("play").click();}
   else if(e.code==="KeyK"&&!e.repeat){e.preventDefault();dropDown();}});
