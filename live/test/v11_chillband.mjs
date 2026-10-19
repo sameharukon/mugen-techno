@@ -2,7 +2,7 @@
 //  set   : long おまかせ renders in the chill band (tempo range / drift, style + upper-patch variety, gentle drop variety,
 //          no inserted chill sections, low energy / density vs a 120帯 reference, no doubled kick/bass, peak, limiter GR)
 //  level : per-style loudness / limiter gain reduction
-//  band  : band changes to / from チル帯 (120 / 140 / 160 ↔ チル帯, style-name intents) — tempo moves only inside the beatless bridge
+//  band  : band changes to / from チル帯 (120 / 140 ↔ チル帯, style-name intents) — tempo moves only inside the beatless bridge
 // usage: node v11_chillband.mjs [set|level|band|all]
 import { chromium } from 'playwright-core';
 const which=process.argv[2]||'all';
@@ -58,7 +58,7 @@ if(which==='set'||which==='all')runs.push(['チル帯 おまかせ 480小節 (se
 if(which==='band'||which==='all')runs.push(
   ['120→チル帯→120 (「チル帯で」/「120帯で」)',{bars:120,seed:31,full:true,auto:true,band:'b120',intents:[{bar:4,text:'チル帯で'},{bar:64,text:'120帯で'}]},analyseBand],
   ['140→チル帯 (「ダブテクノ」) → 140 (「140帯で」)',{bars:120,seed:32,full:true,auto:true,band:'b140',style:'hard',intents:[{bar:4,text:'ダブテクノにして'},{bar:64,text:'140帯で'}]},analyseBand],
-  ['チル帯→160 (「160帯で」) → チル帯 (「アンビエント・テクノ」)',{bars:120,seed:33,full:true,auto:true,band:'bchill',intents:[{bar:4,text:'160帯で'},{bar:64,text:'アンビエント・テクノにして'}]},analyseBand],
+  ['チル帯→140 (「140帯で」) → チル帯 (「アンビエント・テクノ」)',{bars:120,seed:33,full:true,auto:true,band:'bchill',intents:[{bar:4,text:'140帯で'},{bar:64,text:'アンビエント・テクノにして'}]},analyseBand],
   ['チル帯 内: 「ハードに」「ダウンテンポ」「もっと速く」',{bars:96,seed:34,full:true,auto:true,band:'bchill',intents:[{bar:4,text:'ハードにして'},{bar:36,text:'ダウンテンポに'},{bar:66,text:'もっと速く'}]},analyseBand]);
 if(which==='level'||which==='all'){const t0=Date.now();console.log('=== loudness per style (32 bars each)');
   for(const [band,style] of [['b120','minimal'],['b140','groove'],...['minimal','groove','tribal','broken','hard'].map(s=>['bchill',s])]){

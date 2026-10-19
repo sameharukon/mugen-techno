@@ -48,7 +48,7 @@ async function sim(band,seed){return await p.evaluate(([band,seed,BARS])=>{
   return {band,seed,styles,keys:kset,keyChanges:kchg,up,bass,pad};},[band,seed,BARS]);}
 const jac=(a,b)=>{const A=new Set(a),B=new Set(b);let i=0;for(const x of A)if(B.has(x))i++;return +(i/Math.max(1,A.size+B.size-i)).toFixed(3);};
 const summary={};
-for(const band of ['b120','b140','b160','bchill']){const runs=[];const t0=Date.now();
+for(const band of ['b120','b140','bchill']){const runs=[];const t0=Date.now();
   for(let k=0;k<NSEED;k++)runs.push(await sim(band,1000+k*77));
   const cross={};for(const part of ['up','bass','pad']){const bj=[],rj=[],nj=[];for(let i=0;i<runs.length;i++)for(let j=i+1;j<runs.length;j++){if(!runs[i][part].sets||!runs[j][part].sets)continue;bj.push(jac(runs[i][part].sets.bars,runs[j][part].sets.bars));rj.push(jac(runs[i][part].sets.rhythms,runs[j][part].sets.rhythms));
       const LA=runs[i][part].sets.barList,LB=runs[j][part].sets.barList.map(x=>new Set(x));let acc=0;for(const a of LA){const A=new Set(a);let mx=0;for(const Bs of LB){let k=0;for(const x of A)if(Bs.has(x))k++;mx=Math.max(mx,k/Math.max(1,A.size+Bs.size-k));}acc+=mx;}nj.push(acc/Math.max(1,LA.length));}

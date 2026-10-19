@@ -8,7 +8,7 @@ const label=process.argv[2]||'',html=process.argv[3]||'/workspace/techno/live/in
 const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
 const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
 const out={};
-for(const band of ['b120','b140','b160','bchill']){const tot={four:0,broken:0,none:0,other:0,chill:0,brk:0,halftime:0,n:0,styleBroken:0},brokenRuns=[],chillRuns=[],chillGaps=[],brkTypes={};
+for(const band of ['b120','b140','bchill']){const tot={four:0,broken:0,none:0,other:0,chill:0,brk:0,halftime:0,n:0,styleBroken:0},brokenRuns=[],chillRuns=[],chillGaps=[],brkTypes={};
   for(let i=0;i<NS;i++){await p.goto('file://'+html);
     const r=await p.evaluate(([band,i,BARS])=>{S.band=band;S.style=BANDS[band].first;const e=new Engine(new OfflineAudioContext(2,4410,44100),3100+i*57,{opening:true});e.cond.auto=true;
       for(const k of ['synth','stab','hardStab','acid','fmHit','organ','vox','marimba','flute','pulse','bleep','drone','bass','hat','clap','snare','perc','crash','chipNote','chipArp','chipNoise','noiseWash','revCym'])if(typeof e[k]==='function')e[k]=()=>{};

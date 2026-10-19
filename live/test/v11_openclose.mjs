@@ -32,9 +32,9 @@ if(which==='offline'||which==='all'){
   const runs=[
     ['120帯 オープニング→おまかせ→ストップ(40小節目)',{bars:90,seed:11,auto:true,full:true,band:'b120',opening:true,closeAt:40}],
     ['140帯 オープニング→ミックス中にストップ(「一気にハードに」34→ストップ40)',{bars:100,seed:12,auto:true,full:true,band:'b140',opening:true,intents:[{bar:34,text:'一気にハードに'}],closeAt:40}],
-    ['160帯 オープニング→ブレイク予約直後にストップ',{bars:90,seed:13,auto:true,full:true,band:'b160',opening:true,intents:[{bar:38,text:'ブレイク入れて'}],closeAt:39}],
+    ['140帯 オープニング→ブレイク予約直後にストップ',{bars:90,seed:13,auto:true,full:true,band:'b140',opening:true,intents:[{bar:38,text:'ブレイク入れて'}],closeAt:39}],
     ['チル帯 オープニング→ストップ(48)',{bars:100,seed:14,auto:true,full:true,band:'bchill',opening:true,closeAt:48}],
-    ['120帯 帯変更予約(「160帯で」)直後にストップ',{bars:90,seed:15,auto:true,full:true,band:'b120',intents:[{bar:20,text:'160帯で'}],closeAt:21}],
+    ['120帯 帯変更予約(「140帯で」)直後にストップ',{bars:90,seed:15,auto:true,full:true,band:'b120',intents:[{bar:20,text:'140帯で'}],closeAt:21}],
     ['即停止エスケープ: クロージング中(30)に 64秒でハードストップ',{bars:50,seed:16,auto:true,full:true,band:'b120',closeAt:30,hardStopAt:64,d2Windows:[[63.5,64],[64,64.4],[64.4,66]]}]];
   for(const [name,o] of runs){const t0=Date.now();const out=await p.evaluate(x=>window.__renderOffline(x),o);
     console.log('=== '+name+` (${((Date.now()-t0)/1000).toFixed(0)}s)`);console.log(JSON.stringify(analyse(name,out),null,1));}
@@ -46,7 +46,7 @@ if(which==='live'||which==='all'){
     btn:document.getElementById('play').textContent,btnClosing:document.getElementById('play').classList.contains('closing'),
     arcOn:[...document.querySelectorAll('.arc span.on')].map(x=>x.textContent).join(','),setl:[...document.querySelectorAll('.setl i.oc')].map(x=>x.textContent).join(','),
     mixinfo:document.getElementById('mixinfo').textContent}));console.log(l,JSON.stringify(s));return s;};
-  await p.click('#bandb160');await p.click('#play');await p.waitForTimeout(1500);
+  await p.click('#bandb140');await p.click('#play');await p.waitForTimeout(1500);
   await st('opening');
   const kickAt=await p.evaluate(()=>new Promise(r=>{const e=eng,f=e.kick.bind(e);let k=null;e.kick=(...a)=>{if(k==null)k=e.bar;return f(...a);};const iv=setInterval(()=>{if(k!=null||e.bar>=20){clearInterval(iv);r(k);}},200);}));
   console.log('live first kick bar:',kickAt);await st('after opening');

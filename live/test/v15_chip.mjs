@@ -6,7 +6,7 @@ const NS=+(process.argv[2]||6),BARS=+(process.argv[3]||480),html='/workspace/tec
 const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
 const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
 const out={};
-for(const band of ['b120','b140','b160','bchill']){const A={segs:[],lens:[],phrases:0,inOpening:0,inClosing:0,notes:0,inKey:0,gapsPhrases:[],modes:{}};
+for(const band of ['b120','b140','bchill']){const A={segs:[],lens:[],phrases:0,inOpening:0,inClosing:0,notes:0,inKey:0,gapsPhrases:[],modes:{}};
   for(let i=0;i<NS;i++){await p.goto('file://'+html);
     const r=await p.evaluate(([band,i,BARS])=>{S.band=band;S.style=BANDS[band].first;const e=new Engine(new OfflineAudioContext(2,4410,44100),7000+i*41,{opening:true});e.cond.auto=true;e.debug=true;
       for(const k of ['synth','stab','hardStab','acid','fmHit','organ','vox','marimba','flute','pulse','bleep','drone'])e[k]=()=>{};
@@ -25,7 +25,7 @@ for(const band of ['b120','b140','b160','bchill']){const A={segs:[],lens:[],phra
   console.log('===',band,JSON.stringify(out[band]));}
 // (B) renders with the layer forced on (bars 8-24 of 32)
 const R={};
-for(const band of ['b120','b140','b160','bchill']){await p.goto('file://'+html);
+for(const band of ['b120','b140','bchill']){await p.goto('file://'+html);
   R[band]=await p.evaluate(async band=>{let E;const r=await window.__renderOffline({band,bars:32,seed:4242,auto:true,setup:e=>{E=e;e.chipForceBar=8;e.chipForceLen=16;}});
     return {peakDb:r.peakDb,nan:r.nan,segs:E.chipSegs,chipNotes:E.chipLog.length};},band);
   console.log('render',band,JSON.stringify(R[band]));}

@@ -71,10 +71,10 @@ input[type=range]{width:100%;accent-color:var(--acc)}
 <body>
 <main>
 <h1>TECHNO LIVE — 意図で操るDJ</h1>
-<div class="sub">数値ではなく、ボタンで「どうしたいか」を伝えてください。指揮者（コンダクター）がフレーズ単位でDJのように少しずつ変えていきます。セットはチル帯／120帯／140帯／160帯のテンポ帯ごとに組まれ、帯の中でゆっくり流れます。ブレイクは種類を指定することも、おまかせにすることもできます。スタートはオープニングから徐々に始まり、ストップはクロージングを経て止まります（クロージング中にもう一度押すと即停止）。終わった予定は「消化した予定」に残ります。（スペース：再生/停止 ・ K：キック抜き）</div>
+<div class="sub">数値ではなく、ボタンで「どうしたいか」を伝えてください。指揮者（コンダクター）がフレーズ単位でDJのように少しずつ変えていきます。セットはチル帯／120帯／140帯のテンポ帯ごとに組まれ、帯の中でゆっくり流れます。ブレイクは種類を指定することも、おまかせにすることもできます。スタートはオープニングから徐々に始まり、ストップはクロージングを経て止まります（クロージング中にもう一度押すと即停止）。終わった予定は「消化した予定」に残ります。（スペース：再生/停止 ・ K：キック抜き）</div>
 <div class="top">
   <button id="play" class="play">▶ スタート</button>
-  <div class="bandsel" title="セットのテンポ帯（途中で切り替えるとビートレスのブリッジでテンポを移行）"><button id="bandbchill" data-band="bchill">チル帯</button><button id="bandb120" data-band="b120" class="on">120帯</button><button id="bandb140" data-band="b140">140帯</button><button id="bandb160" data-band="b160">160帯</button></div>
+  <div class="bandsel" title="セットのテンポ帯（途中で切り替えるとビートレスのブリッジでテンポを移行）"><button id="bandbchill" data-band="bchill">チル帯</button><button id="bandb120" data-band="b120" class="on">120帯</button><button id="bandb140" data-band="b140">140帯</button></div>
   <div class="vol">音量 <input id="vol" type="range" min="0" max="1" step="0.01" value="0.8"></div>
   <span class="status" id="status">停止中</span>
 </div>
@@ -126,10 +126,7 @@ const BANDS={
     pool:{warm:["minimal","broken"],build:["tribal","groove","broken"],peak:["hard","groove","tribal"],release:["minimal","broken","tribal"]}},
   b140:{ja:"140帯",min:134,max:148,center:140,start:137,first:"groove",arc:{warm:137,build:140,peak:144,release:140},
     pool:{warm:["groove","minimal"],build:["tribal","groove","broken"],peak:["hard","tribal","hard"],release:["groove","minimal","tribal"]}},
-  // 160: Schranz / hardcore / crossbreed. Same five style families, band-specific identity (STYLE_BAND / KICK_BAND / PATCHES160 / BASS160)
-  b160:{ja:"160帯",min:155,max:170,center:160,start:157,first:"groove",arc:{warm:157,build:160,peak:164.5,release:160},
-    pool:{warm:["groove","minimal"],build:["tribal","groove","broken"],peak:["hard","broken","hard"],release:["groove","minimal","tribal"]},
-    chillW:{soft4:1,half:2.5,beatless:2}}};
+};
 const PHASES=["warm","build","peak","release"],PHASE_JA={warm:"ウォームアップ",build:"ビルド",peak:"ピーク",release:"リリース",chill:"チル",opening:"オープニング",closing:"クロージング"},PHASE_E={warm:.38,build:.6,peak:.88,release:.5,chill:.22};
 // chill episode: same band / same tempo rules, softer rounded kick (or half-time / brief beatless), warm pads, dubby space, fewer hats
 const phJa=(ph,band=S.band)=>((BANDS[band]||{}).phaseJa||{})[ph]||PHASE_JA[ph];
@@ -138,8 +135,7 @@ const CHILL_MODE_JA={soft4:"丸いキックの4つ打ち",half:"ハーフタイ�
 const chillKick=(st,band)=>({...kickParams(st,band),f0:125,f1:45,sw:0.14,tau:0.12,click:0.1,len:band==="b160"?0.34:0.5,drive:0,rumble:0,gab:0});
 const STYLE_BAND={b120:{minimal:{bpm:124,ja:"ミニマル"},tribal:{bpm:126,ja:"トライバル"},broken:{bpm:125,ja:"ブロークン"},groove:{bpm:127,ja:"グルーヴィー"},hard:{bpm:129,ja:"インダストリアル"}},
   b140:{minimal:{bpm:138,ja:"ハイプノティック"},groove:{bpm:136,ja:"ハードグルーヴ"},tribal:{bpm:140,ja:"ピークタイム・トライバル"},broken:{bpm:139,ja:"ブロークン（速め）"},hard:{bpm:144,ja:"ハードテクノ"}},
-  bchill:{minimal:{bpm:116,ja:"ディープ・ミニマル"},groove:{bpm:117,ja:"ダブテクノ"},tribal:{bpm:115,ja:"オーガニック・ローファイ"},broken:{bpm:114,ja:"ダウンテンポ（ハーフタイム）"},hard:{bpm:113,ja:"アンビエント・テクノ"}},
-  b160:{minimal:{bpm:157,ja:"ハイプノ・シュランツ"},groove:{bpm:158,ja:"シュランツ"},tribal:{bpm:160,ja:"トライバル・シュランツ"},broken:{bpm:162,ja:"クロスブリード"},hard:{bpm:166,ja:"ハードコア"}}};
+  bchill:{minimal:{bpm:116,ja:"ディープ・ミニマル"},groove:{bpm:117,ja:"ダブテクノ"},tribal:{bpm:115,ja:"オーガニック・ローファイ"},broken:{bpm:114,ja:"ダウンテンポ（ハーフタイム）"},hard:{bpm:113,ja:"アンビエント・テクノ"}}};
 const styleJa=(st,band=S.band)=>(STYLE_BAND[band]&&STYLE_BAND[band][st]||STYLES[st]).ja;
 // kick timbre as continuous parameters (drive = hard saturation share, rumble = reverb/distortion tail send)
 const KICK_BASE={minimal:{f0:160,f1:48,sw:0.12,tau:0.16,click:0.35,len:0.6,drive:0,rumble:0,gab:0},
@@ -856,7 +852,6 @@ class Engine{
     else if(s%2===1 && r()<(1-0.8*ca)*P.ghost*Math.min(1.6,0.3+1.5*p.density)){this.hat(tsw,hv*0.12*(0.6+0.6*r()),0.03,0.006,(r()-0.5)*1.2);ev.hat=Math.max(ev.hat,0.4);this.hatBar++;}
     if(M.c&&cm!=="beatless"&&(cm==="half"?s===8:(s===4||s===12))){this.clap(t,1-0.5*ca);ev.clap=1;}
     if(M.h&&ca<0.5&&(P.openHat||p.energy>0.72) && s%8===6){this.hat(t,0.16,0.3,0.07,0);ev.hat=1;this.hatBar++;}
-    if(d.band==="b160"){this.drums160(d,t,s,ev,v,M,dn,ca,cm);return;}
     if(!M.p){}
     else if(d.style==="groove"){
       const sw=s%2===1?this.s16*Math.max(0.2,p.swing*0.3):0;
@@ -891,19 +886,6 @@ Engine.prototype.drumsChill=function(d,t,tsw,s,ev,v,M,dn,ca,cm){const P=d.pat,r=
   if(st==="hard"&&s===0&&this.bar%4===2&&r()<0.5){this.noiseWash(t,2*16*this.s16,0.018,this.cur.perc);}
 };
 
-// 160 band percussion: hardcore = fast 16th hats; schranz family = distorted, filter-swept noise loops (+ toms for tribal schranz)
-const LOOP160={groove:1,minimal:0.65,tribal:0.45,broken:0.55,hard:0};
-Engine.prototype.drums160=function(d,t,s,ev,v,M,dn,ca,cm){const P=d.pat,r=this.rand,p=this.cond.p,kill=cm==="beatless"&&ca>0.6;
-  if(M.h&&!kill&&d.style==="hard"&&s%4!==2&&r()<(1-0.75*ca)*Math.min(1,0.55+0.6*p.density)){
-    this.hat(t,(1-0.55*ca)*(s%2?0.11:0.075)*(0.8+0.4*r()),0.025,0.006,(r()-0.5)*0.5,8500);ev.hat=Math.max(ev.hat,0.5);this.hatBar++;}
-  if(!M.p||kill)return;
-  const lp=LOOP160[d.style]*(1-0.8*ca);
-  if(lp>0&&r()<P.loop[s]*lp*Math.min(1.25,dn)){const acc=s%4===2?1:(s%2?0.6:0.75);this.loopHit(t,0.22*acc*(0.75+0.5*r())*(0.75+0.4*p.energy),P.loopF[s],d);ev.perc=Math.max(ev.perc,acc);}
-  if(d.style==="tribal"){const T=P.trib,g=this.step;
-    if(((g-T.off)%T.cyc+T.cyc)%T.cyc===0){this.tom(t,T.voiceA,0.75);ev.perc=1;}
-    if(T.b[s]>=0&&r()<T.prob*dn*0.8){this.tom(t,T.b[s],[0,3,6].includes(s)?0.9:0.6);ev.perc=1;}}
-  if(d.style==="broken"&&s%8===6&&r()<0.5*dn){this.ride(t,0.5);ev.perc=Math.max(ev.perc,0.6);}
-};
 
 // ---------- Upper layer (上モノ) : per-style palettes ----------
 const PHRYG=[0,1,3,5,7,8,10],DORIAN=[0,2,3,5,7,9,10];
@@ -1103,7 +1085,7 @@ Object.assign(Engine.prototype,{
 });
 
 // ---------- v15: chiptune colour layer (occasional spice: pulse/duty leads, NES-style arps, noise ticks, light bit-crush) ----------
-const CHIP_P={b120:.5,bchill:.5,b140:.42,b160:.26};       // chance per free 16-bar phrase line (after a cooldown)
+const CHIP_P={b120:.5,bchill:.5,b140:.42};       // chance per free 16-bar phrase line (after a cooldown)
 const CHIP_DUTY=[0.125,0.25,0.5],CHIP_DUTY_JA={0.125:"12.5%",0.25:"25%",0.5:"50%"};
 Object.assign(Engine.prototype,{
   initChip(){const c=this.ctx,bd=()=>16*this.s16;
@@ -1200,28 +1182,6 @@ const PATCHES={
     {n:"chords",ja:"スクエア・コード",osc:[["square",-5,.5],["square",5,.5]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1200,q:3,env:2.5,dec:.06},a:{a:.002,d:.12,s:0,r:.04},lvl:.06,gate:.5},
     {n:"acid",ja:"アシッド",special:"acid"},
     {n:"bleeps",ja:"ブリープ",special:"bleep"}]};
-// 160: no "classic" palette; saturated stabs, screech leads, off-beat core stabs, metallic loops, reese for crossbreed (sat = per-note saturation)
-const PATCHES160={
-  groove:[{n:"schstab",ja:"歪みループ・スタブ",osc:[["sawtooth",-10,.5],["sawtooth",10,.5]],chord:[0,7],oct:-12,f:{type:"lowpass",cut:1300,q:4,env:3,dec:.05},a:{a:.001,d:.1,s:0,r:.03},lvl:.075,gate:.4,sat:true},
-    {n:"metalloop",ja:"メタル・ループ（FM）",fm:{ratio:4.7,index:5,dec:.04},osc:[["sine",0,1]],chord:[0],oct:24,f:{type:"highpass",cut:1200,q:.7,env:1,dec:.05},a:{a:.001,d:.08,s:0,r:.03},lvl:.06,gate:.3},
-    {n:"sirenS",ja:"シュランツ・サイレン",osc:[["square",-12,.5],["square",12,.5]],chord:[0],oct:12,f:{type:"bandpass",cut:1600,q:3,env:1.5,dec:.2},a:{a:.01,d:.3,s:.5,r:.08},bend:{from:-12,time:.2},lvl:.055,gate:1.4,sat:true},
-    {n:"rave",ja:"レイヴ・スタブ",osc:[["sawtooth",-15,.5],["sawtooth",15,.5]],chord:[0,3,7],oct:0,f:{type:"lowpass",cut:1800,q:2,env:2.5,dec:.08},a:{a:.002,d:.14,s:0,r:.04},lvl:.055,gate:.5,sat:true}],
-  hard:[{n:"screech",ja:"スクリーチ・リード",osc:[["sawtooth",-20,.5],["square",20,.4]],chord:[0],oct:12,f:{type:"bandpass",cut:2400,q:6,env:2,dec:.15},a:{a:.003,d:.2,s:.6,r:.05},bend:{from:12,time:.06},lvl:.06,gate:1,sat:true},
-    {n:"offstab",ja:"裏打ちコア・スタブ",special:"offstab",osc:[["sawtooth",-12,.5],["sawtooth",12,.5]],chord:[0,3,7,12],oct:0,f:{type:"lowpass",cut:2400,q:3,env:2,dec:.06},a:{a:.001,d:.12,s:0,r:.03},lvl:.06,gate:.45,sat:true},
-    {n:"darklead",ja:"ダーク・リード",osc:[["sawtooth",-18,.5],["sawtooth",18,.5]],chord:[0,7],oct:-12,f:{type:"lowpass",cut:900,q:5,env:3,dec:.2},a:{a:.01,d:.3,s:.4,r:.08},lvl:.06,gate:1.5,sat:true},
-    {n:"alarm",ja:"アラーム",osc:[["square",0,1]],chord:[0],oct:24,bend:{from:7,time:.03},a:{a:.001,d:.07,s:0,r:.02},lvl:.04,gate:.3}],
-  minimal:[{n:"metalloop",ja:"メタル・ループ（FM）",fm:{ratio:4.7,index:5,dec:.04},osc:[["sine",0,1]],chord:[0],oct:24,f:{type:"highpass",cut:1200,q:.7,env:1,dec:.05},a:{a:.001,d:.08,s:0,r:.03},lvl:.06,gate:.3},
-    {n:"hypnoS",ja:"歪みヒプノ・シーケンス",osc:[["sawtooth",0,.6],["square",5,.4]],chord:[0],oct:0,f:{type:"lowpass",cut:600,q:9,env:5,dec:.07},a:{a:.002,d:.15,s:.2,r:.03},lvl:.06,gate:.55,sat:true},
-    {n:"bleepS",ja:"ブリープ",osc:[["sine",0,1]],chord:[0],oct:12,a:{a:.002,d:.08,s:0,r:.03},lvl:.11,gate:.4},
-    {n:"noisestab",ja:"ノイズ・スタブ",osc:[["sawtooth",-30,.5],["sawtooth",30,.5]],chord:[0,1,7],oct:-12,f:{type:"bandpass",cut:1500,q:2,env:2,dec:.04},a:{a:.001,d:.08,s:0,r:.02},lvl:.06,gate:.35,sat:true}],
-  tribal:[{n:"logdrumS",ja:"歪みログドラム",osc:[["sine",0,1]],chord:[0],oct:-12,bend:{from:7,time:.03},a:{a:.001,d:.18,s:0,r:.05},lvl:.15,gate:.5,sat:true},
-    {n:"chant",ja:"チャント",special:"chant"},
-    {n:"metalloop",ja:"メタル・パーカッション（FM）",fm:{ratio:5.33,index:6,dec:.06},osc:[["sine",0,1]],chord:[0],oct:24,f:{type:"highpass",cut:900,q:.7,env:1,dec:.05},a:{a:.001,d:.1,s:0,r:.04},lvl:.06,gate:.35},
-    {n:"kalimba",ja:"カリンバ",special:"kalimba"}],
-  broken:[{n:"reese",ja:"リース（クロスブリード）",osc:[["sawtooth",-25,.5],["sawtooth",25,.5]],chord:[0],oct:-12,f:{type:"lowpass",cut:650,q:4,env:2,dec:.25},a:{a:.01,d:.4,s:.6,r:.1},lvl:.06,gate:2,sat:true},
-    {n:"zapS",ja:"ザップ",osc:[["sine",0,1]],chord:[0],oct:12,bend:{from:24,time:.04},a:{a:.001,d:.1,s:0,r:.03},lvl:.11,gate:.4},
-    {n:"darkchord",ja:"ダーク・コード",osc:[["square",-6,.5],["square",6,.5]],chord:[0,1,7,10],oct:0,f:{type:"lowpass",cut:1000,q:3,env:2.5,dec:.06},a:{a:.002,d:.12,s:0,r:.04},lvl:.05,gate:.5,sat:true},
-    {n:"acid",ja:"アシッド",special:"acid"}]};
 // chill band 上モノ: dub chords, Rhodes-like keys, bells, slow pad swells, organic mallets, lo-fi keys
 const PATCHESCH={
   groove:[{n:"dubchord",ja:"ダブ・コード（m9）",osc:[["sawtooth",-8,.5],["sawtooth",8,.5]],chord:[0,3,7,10,14],f:{type:"lowpass",cut:800,q:2,env:3,dec:.12},a:{a:.003,d:.25,s:0,r:.08},lvl:.07,gate:.9},
@@ -1243,7 +1203,7 @@ const PATCHESCH={
     {n:"vibes",ja:"ヴィブラフォン（FM）",fm:{ratio:4,index:1,dec:.3},osc:[["sine",0,1]],chord:[0,7],oct:12,a:{a:.002,d:.7,s:0,r:.4},lvl:.07,gate:1},
     {n:"chillkeys",ja:"チル・キー（ローズ風）",osc:[["triangle",0,.6],["sine",0,.5]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1500,q:.7,env:1.4,dec:.3},a:{a:.006,d:.6,s:.15,r:.35},lvl:.07,gate:1.6},
     {n:"dubstab",ja:"ダブ・スタブ（こもり）",osc:[["sawtooth",-6,.5],["sawtooth",6,.5]],chord:[0,3,7,10],f:{type:"lowpass",cut:600,q:3,env:3,dec:.1},a:{a:.002,d:.2,s:0,r:.06},lvl:.065,gate:.6}]};
-const patchList=d=>(d.band==="b160"?PATCHES160:d.band==="bchill"?PATCHESCH:PATCHES)[d.style];
+const patchList=d=>(d.band==="bchill"?PATCHESCH:PATCHES)[d.style];
 const SECTION_JA={off:"お休み",sparse:"まばら",main:"メイン",intense:"強め"};
 const CHILL_PATCHES=[
   {n:"chillkeys",ja:"チル・キー（ローズ風）",osc:[["triangle",0,.6],["sine",0,.5]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1500,q:.7,env:1.4,dec:.3},a:{a:.006,d:.6,s:.15,r:.35},lvl:.075,gate:1.6},
@@ -1769,16 +1729,9 @@ class Conductor{
     if(BAND_CH.test(t2)){const pref=/ダブ/.test(t2)?"groove":/アンビエント/.test(t2)?"hard":/ダウンテンポ/.test(t2)?"broken":/ディープ/.test(t2)?"minimal":/ローファイ|lo-?fi|オーガニック/.test(t2)?"tribal":null;
       if(!inChill()){this.requestBand("bchill",labels,pref);hit=true;}else if(pref)style(pref);else{this.requestBand("bchill",labels);hit=true;}
       t2=t2.replace(new RegExp("("+BAND_CH.source+")(帯)?(で|に|へ)?(上げて|下げて|落として|移って|変えて|行って|して|戻して)?","g"),"");}
-    // 160 band: band words, and Schranz / hardcore / crossbreed names (outside the 160 set they switch band and start in that style)
-    const BAND_CORE=/160帯|160|コア系|ハードコア|ガバ|gabber|シュランツ|schranz|クロスブリード|crossbreed|もっと速く/;
-    if(BAND_CORE.test(t2)){const pref=/ハードコア|ガバ|gabber/.test(t2)?"hard":(/シュランツ|schranz/.test(t2)?(/トライバル/.test(t2)?"tribal":"groove"):(/クロスブリード|crossbreed/.test(t2)?"broken":null));
-      const cur=this.pendingBand||this.band,onlyFaster=/もっと速く/.test(t2)&&!/160|コア系|ハードコア|ガバ|gabber|シュランツ|schranz|クロスブリード|crossbreed/.test(t2);
-      if(onlyFaster&&cur==="bchill"){this.requestBand("b120",labels);hit=true;}   // from the chill band, "faster" is one step up (120帯), not straight to 160
-      else if(cur!=="b160"){this.requestBand("b160",labels,pref);hit=true;}
-      else if(pref){style(pref);}
-      else if(!onlyFaster){this.requestBand("b160",labels);hit=true;}
-      t2=t2.replace(/(160帯|160|コア系|ハードコア|ガバ|gabber|トライバル・?シュランツ|シュランツ|schranz|クロスブリード|crossbreed)(で|に|へ)?(上げて|移って|変えて|行って|して)?/g,"");
-      if(!onlyFaster||cur!=="b160")t2=t2.replace(/もっと速く(して)?/g,"");}
+    // v17: the 160 band is gone. "もっと速く" moves one band up (チル帯→120帯→140帯); inside 140帯 it is a tempo nudge, capped at the band top (148 BPM)
+    if(/もっと速く/.test(t2)){const cur=this.pendingBand||this.band;
+      if(cur==="bchill"||cur==="b120"){this.requestBand(cur==="bchill"?"b120":"b140",labels);hit=true;t2=t2.replace(/もっと速く(して)?/g,"");}}
     const BAND_HI=/140帯|140|ハイテンポ|速めのセット|速いセット|アップテンポ|高速/,BAND_LO=/120帯|125帯|120|ゆったりめ|遅めのセット|ゆっくりめ|ミドルテンポ/;
     if(BAND_HI.test(t2)){this.requestBand("b140",labels);hit=true;t2=t2.replace(new RegExp("("+BAND_HI.source+")(帯)?(で|に|へ)?(上げて|下げて|落として|移って|変えて|行って|して|戻して)?","g"),"");}
     else if(BAND_LO.test(t2)){this.requestBand("b120",labels);hit=true;t2=t2.replace(new RegExp("("+BAND_LO.source+")(帯)?(で|に|へ)?(上げて|下げて|落として|移って|変えて|行って|して|戻して)?","g"),"");}
@@ -1938,7 +1891,7 @@ function setPlayUI(on){const b=$("play");b.textContent=on?"■ ストップ":"�
 // ストップ = クロージング（フレーズ単位で徐々に終わる）。クロージング中にもう一度押すと即停止（短いフェード）
 function beginClose(){if(!eng)return stop();const labels=[];eng.cond.curSrc="ストップ";eng.cond.startClosing(labels);eng.cond.curSrc=null;showInterp({ok:true,labels},"");updatePanel();}
 $("play").addEventListener("click",()=>{if(!playing)start();else if(eng&&eng.cond.closing)stop();else beginClose();});
-const INTENT_BTNS=["盛り上げて","もっとハードに","落ち着かせて","暗く","明るく","グルーヴを出して","トライバルに","ミニマルに戻して","ブレイク入れて","ピークを作って","ずっとこのまま","ブレイクビート風に","チル帯で","120帯で","140帯で","160帯で","少しテンポを上げて","少しテンポを下げて","チルに","ちょっと休憩","ハーフタイムでチル","ビートレスで一息"];
+const INTENT_BTNS=["盛り上げて","もっとハードに","落ち着かせて","暗く","明るく","グルーヴを出して","トライバルに","ミニマルに戻して","ブレイク入れて","ピークを作って","ずっとこのまま","ブレイクビート風に","チル帯で","120帯で","140帯で","少しテンポを上げて","少しテンポを下げて","チルに","ちょっと休憩","ハーフタイムでチル","ビートレスで一息"];
 $("intents").innerHTML=INTENT_BTNS.map(t=>`<button data-intent="${t}">${t}</button>`).join("");
 $("intents").addEventListener("click",e=>{const b=e.target.closest("button");if(b)sendIntent(b.dataset.intent);});
 const QUICK_BRK=["おまかせ",...BREAK_ORDER];

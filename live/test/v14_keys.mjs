@@ -11,7 +11,7 @@ const out={};
 const NM=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 const q=(a,x)=>{const s=a.slice().sort((p,q)=>p-q);return s.length?s[Math.floor(x*(s.length-1))]:null;};
 const hz=m=>+(440*Math.pow(2,(m-69)/12)).toFixed(1);
-for(const band of ['b120','b140','b160','bchill']){const keys={},modes={};
+for(const band of ['b120','b140','bchill']){const keys={},modes={};
   for(let c=0;c<NS;c+=25){await p.goto('file://'+html);const r=await p.evaluate(([band,c,n])=>{const res=[];S.band=band;
       for(let i=c;i<c+n;i++){S.style=BANDS[band].first;const oc=new OfflineAudioContext(2,4410,44100),e=new Engine(oc,5000+i*13);res.push([((S.key%12)+12)%12,e.low.mode||"(none)"]);}return res;},[band,c,Math.min(25,NS-c)]);
     for(const [k,m] of r){keys[NM[k]]=(keys[NM[k]]||0)+1;modes[m]=(modes[m]||0)+1;}}
