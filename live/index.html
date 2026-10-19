@@ -191,9 +191,12 @@ const camelot=k=>(((7*(pcOf(k)-9)+7)%12)+12)%12+1;            // minor keys on t
 const keyName=k=>KEY_NAMES[pcOf(k)]+"m",keyLabel=k=>`${keyName(k)}（${camelot(k)}A）`;
 const MODES={aeolian:[0,2,3,5,7,8,10],dorian:[0,2,3,5,7,9,10],phrygian:[0,1,3,5,7,8,10],minpent:[0,3,5,7,10]};
 const MODE_JA={aeolian:"エオリアン",dorian:"ドリアン",phrygian:"フリジアン",minpent:"マイナーペンタ"};
-const MODE_W={minimal:{minpent:.35,dorian:.35,aeolian:.3},hard:{phrygian:.5,aeolian:.35,minpent:.15},groove:{dorian:.5,aeolian:.25,minpent:.25},
-  tribal:{minpent:.45,dorian:.3,phrygian:.25},broken:{minpent:.35,aeolian:.35,phrygian:.3}};
-const MODE_W_CH={dorian:.4,aeolian:.35,minpent:.25};
+// v14: natural minor most of the time; phrygian now and then for hard / 160, dorian now and then for groove / chill
+const MODE_W={minimal:{aeolian:1},hard:{aeolian:.75,phrygian:.25},groove:{aeolian:.72,dorian:.28},tribal:{aeolian:1},broken:{aeolian:1}};
+const MODE_W160={aeolian:.75,phrygian:.25};
+const MODE_W_CH={aeolian:.72,dorian:.28};
+// v14: set keys only with roots F..B (sub root ~44-62 Hz, same register as the A-minor home); A minor is the home key
+const KEY_W={9:.45,7:.11,8:.11,10:.11,5:.08,6:.07,11:.07};
 // chord-root progressions (semitones above the key root, one chord per H.len bars); filtered to the deck's mode
 const PROGS=[[0,0,0,0],[0,0,10,10],[0,0,8,8],[0,8,10,0],[0,5,0,5],[0,10,8,10],[0,3,10,8],[0,0,0,10],[0,0,1,0],[0,0,5,7],[0,8,3,10],[0,10,0,10],[0,0,5,5],[0,5,10,3]];
 const PROG_W={minimal:[1.5,1,1,0,1,0,0,1,0,0,0,0,.6,0],hard:[3,0,0,0,0,0,0,1,2,0,0,.6,0,0],groove:[.5,1,0,0,1.5,1,.8,0,0,.6,0,0,.6,.6],
@@ -424,7 +427,7 @@ class Engine{
     this.bpm=BANDS[S.band].start;this.bpmGlide=null;this.setBpm(this.bpm,0);
     this.kp=kickParams(S.style,S.band);this.kMorph=null;this.motifSeq=0;this.upLog=[];this.kpLog=[];this.arrLog=[];this.chillAmt=0;this.chillGlide=null;this.chillMode=null;this.chillLog=[];this.hatBar=0;this.kickBarCnt=0;
     this.step=0;this.nextTime=0;this.bar=0;this.onStep=null;
-    this.key=opts.key!=null?pcOf(opts.key):Math.floor(this.rand()*12);S.key=this.key;   // v13: key per set (seeded), kick tail + bass follow it
+    this.key=opts.key!=null?pcOf(opts.key):+pickW(this.rand,KEY_W);S.key=this.key;   // v13/v14: key per set (seeded, roots F..B, A minor most likely), kick tail + bass follow it
     this.initUpper();this.decks=[this.makeDeck(S.style,true)];this.low=this.decks[0];this.cur=this.low.out;this.cond=new Conductor(this);
     this.drop={active:false,type:"kick",src:null,endBar:-1,startBar:0,len:0,armed:false,tr:0,riserOn:false,spaceBoost:0};this.returnTimes=[];this.dropTimes=[];
     this.breakLog=[];this.brkMarks=[];
@@ -545,13 +548,13 @@ class Engine{
 
   // ----- tonal -----
   // kick tail target: the key root in the octave nearest the patch tail; when the root sits far from it (> ~2.5 st), its fifth instead
-  tailRoot(f1){const h=mtof(33+keyOff());let best=h,bs=1e9;
+  tailRoot(f1){const h=mtof(33+keyOff());if(h>=42&&h<=63)return h;let best=h,bs=1e9;   // v14: roots F..B sit at 44-62 Hz: tune straight to the root
     for(const [m,pen] of [[1,0],[1.5,2.5]])for(let k=-2;k<=2;k++){const c=h*m*Math.pow(2,k),sc=Math.abs(12*Math.log2(c/f1))+pen;if(sc<bs){bs=sc;best=c;}}return best;}
   // bass pitch: pentatonic degree on the key root, following the low deck's chord when its harmony says so (snapped to its mode)
   // lift: notes below / on the root go up an octave (クロスブリード: the kick tail owns the sub on the root, the off-beat bass sits on / above it)
   bassMidi(note,lift){const root=33+keyOff(),L=this.low;let rel=MINOR_PENT[note.deg]+12*note.oct;
     if(L&&L.harm&&L.harm.bassFollow){const ch=this.chordOf(L).semi;if(ch){rel=snapTo(rel+(ch>6?ch-12:ch),L.scale);}}
-    let bm=root+rel;if(bm<28)bm+=12;if(lift&&bm<root+3)bm+=12;return bm;}
+    let bm=root+rel;if(note.oct<=0&&bm>root+10)bm-=12;if(bm>root+12)bm-=12;if(bm<28)bm+=12;if(lift&&bm<root+3)bm+=12;return bm;}   // v14: same register as the A-minor version (root .. root+12, octave notes on top)
   bass(t,note,lm=1,lift=false){const c=this.ctx,len=this.s16*0.85*lm;
     const bm=this.bassMidi(note,lift),f=mtof(bm);
     const o1=c.createOscillator(),o2=c.createOscillator(),m1=c.createGain(),m2=c.createGain(),lp=c.createBiquadFilter(),g=c.createGain();
@@ -1191,7 +1194,7 @@ Object.assign(Engine.prototype,{
   voiceNear(tones,center){return tones.map(x=>{let m=x;while(m-center>6)m-=12;while(center-m>6)m+=12;return m;}).sort((a,b)=>a-b);},
   // ----- v13 harmony per deck: mode + chord progression (one chord per H.len bars), Camelot-compatible key for the incoming deck -----
   initHarm(d){const r=this.rand,ch=d.band==="bchill";
-    d.mode=pickW(r,ch?MODE_W_CH:MODE_W[d.style]);d.scale=MODES[d.mode];
+    d.mode=pickW(r,ch?MODE_W_CH:d.band==="b160"&&d.style!=="broken"&&d.style!=="tribal"?MODE_W160:MODE_W[d.style]);d.scale=MODES[d.mode];
     d.harm={prog:null,len:ch?4:(r()<0.3&&(d.style==="minimal"||d.style==="hard")?8:4),
       bassFollow:!(d.band==="b160"&&d.style==="broken")&&r()<(ch?0.85:d.style==="hard"?0.25:0.6),upFollow:r()<(d.style==="hard"?0.5:0.85)};
     d.harm.prog=this.pickProg(d);},
@@ -1200,8 +1203,11 @@ Object.assign(Engine.prototype,{
     for(let i=0;i<ok.length;i++){x-=ok[i];if(x<=0)return PROGS[i].slice();}return [0,0,0,0];},
   chordOf(d,bar=this.bar){const H=d&&d.harm;if(!H)return {semi:0,ci:0};const semi=H.prog[Math.floor(Math.max(0,bar)/H.len)%H.prog.length];
     return {semi,ci:Math.max(0,d.scale.indexOf(semi))};},
-  nextKey(bandChange){const r=this.rand,k=this.low.key,x=r(),p=bandChange?[.25,.3,.3]:[.5,.22,.22];
-    return pcOf(k+(x<p[0]?0:x<p[0]+p[1]?7:x<p[0]+p[1]+p[2]?5:2));},     // Camelot: same / +1 (fifth up) / -1 (fifth down) / +2 (energy boost)
+  // v14: most swaps keep the key; a change (~30%, band change ~40%) moves to a nearby key whose root stays in F..B:
+  // Camelot neighbour (fifth) when in range, else ±2 / ±1 semitones, weighted toward the A-minor home
+  nextKey(bandChange){const r=this.rand,k=pcOf(this.low.key);if(r()>(bandChange?0.4:0.3))return k;
+    const W={};for(const [mv,w] of [[7,1],[5,1],[2,.8],[-2,.8],[1,.5],[-1,.5]]){const n=pcOf(k+mv);if(KEY_W[n]&&n!==k)W[n]=(W[n]||0)+w*KEY_W[n];}
+    return Object.keys(W).length?+pickW(r,W):k;},
   // per phrase: patch variant (often kept so 16 bars stay related), section every 8 bars, motif development every 4 bars
   arrangeUpper(d){const A=d.arr,r=this.rand,P=patchList(d),en=this.cond.p.energy,bar=this.bar;
     if(!A.init){A.init=true;A.variant=d.id===0?0:Math.floor(r()*P.length);A.motif=this.newMotif(d);A.section=d.id===0?"sparse":"main";A.lastSec=A.section;return;}
