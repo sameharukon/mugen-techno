@@ -438,6 +438,7 @@ class Engine{
     if(band==="b160"){d.loopIn=c.createGain();d.loopIn.gain.value=2.2;const ws=c.createWaveShaper();ws.curve=this.loopCurve;
       d.loopBP=c.createBiquadFilter();d.loopBP.type="bandpass";d.loopBP.Q.value=0.8;d.loopBP.frequency.value=1800;
       const lo=c.createGain();lo.gain.value=0.42;d.loopIn.connect(ws).connect(d.loopBP).connect(lo).connect(d.out.perc);d.loopNodes=[d.loopIn,ws,d.loopBP,lo];}
+    d.kit=this.makeKit(d);   // v21: own drum identity
     d.topEnv=new Env(d.ctl.offset,initial?1:0);return d;}
   disposeDeck(d,t){d.upOn=false;d.topOn=false;d.ctl.onended=()=>{for(const g of Object.values(d.out))g.disconnect();for(const x of d.loopNodes||[])x.disconnect();};d.ctl.stop(t+0.5);}
   // ----- intent-driven effective parameters -----
@@ -526,11 +527,11 @@ class Engine{
     o.frequency.setValueAtTime(220,t);o.frequency.exponentialRampToValueAtTime(170,t+0.05);
     og.gain.setValueAtTime(0.35*vel,t);og.gain.setTargetAtTime(0,t,0.035);
     o.connect(og).connect(this.fillBus);o.start(t);o.stop(t+0.25);this.free(o,og);this.stats.fills++;}
-  ride(t,vel){const c=this.ctx; // 808-style metallic: 6 squares -> bandpass -> highpass
+  ride(t,vel,bus=this.cur.perc){const c=this.ctx; // 808-style metallic: 6 squares -> bandpass -> highpass
     const bp=c.createBiquadFilter(),hp=c.createBiquadFilter(),g=c.createGain(),p=c.createStereoPanner();
     bp.type="bandpass";bp.frequency.value=9000;bp.Q.value=0.8;hp.type="highpass";hp.frequency.value=6500;p.pan.value=0.35;
     g.gain.setValueAtTime(0.09*vel,t);g.gain.setTargetAtTime(0,t,0.16);
-    const fo=this.fade(t+0.9,30);bp.connect(hp).connect(g).connect(fo).connect(p).connect(this.cur.perc);
+    const fo=this.fade(t+0.9,30);bp.connect(hp).connect(g).connect(fo).connect(p).connect(bus);
     const os=[];for(const f of [205.3,304.4,369.6,522.7,540,800]){const o=c.createOscillator();o.type="square";o.frequency.value=f*1.7;o.connect(bp);o.start(t);o.stop(t+0.9);os.push(o);this.free(o);}
     os[0].addEventListener("ended",()=>{bp.disconnect();hp.disconnect();g.disconnect();fo.disconnect();p.disconnect();});this.stats.perc++;}
   tom(t,voice,vel){const c=this.ctx;
@@ -797,7 +798,7 @@ class Engine{
       C.onBar(this.bar,t);                          // conductor: intents, phrase plans, DJ mix events
       this.applyBarParams(t);
       this.flavourBar(t);
-      for(const d of this.decks){d.pat.nextBar(v);d.kickBar=this.buildKickBar(d);this.arrangeUpper(d);
+      for(const d of this.decks){d.pat.nextBar(v);this.kitBar(d);d.kickBar=this.buildKickBar(d);this.arrangeUpper(d);
         if(d.loopBP){const ph=((this.bar+d.id*5)%8)/8,f=(650+2600*(0.5-0.5*Math.cos(2*Math.PI*ph)))*Math.pow(2,(0.5-p.dark)*0.8);d.loopBP.frequency.setTargetAtTime(Math.min(6000,f),t,0.6);}}
       if(this.debug)this.arrLog.push([this.bar,this.decks.map(d=>[d.id,d.style,(d.arr.chillPatch||patchList(d)[d.arr.variant]).n,d.arr.section,d.arr.motif?d.arr.motif.id:0,d.arr.layer2&&this.bar%16===0?d.arr.layer2:"",d.arr.chillPatch?d.arr.chillPatch.n:""])]);
       const padOk=!(D.active&&["bridge","intro","outro"].includes(D.type));
@@ -850,45 +851,187 @@ class Engine{
     if(this.onStep) this.onStep(s,t,ev,this.bar);
     this.step++;
   }
-  drumsTop(d,t,s,ev,v,M=M_ALL){const P=d.pat,r=this.rand,p=this.cond.p,dn=this.dens(),ca=this.chillAmt,cm=this.chillMode,hv=1-0.55*ca;
+  drumsTop(d,t,s,ev,v,M=M_ALL){const p=this.cond.p,dn=this.dens(),ca=this.chillAmt,cm=this.chillMode,hv=1-0.55*ca,K=d.kit;
     const tsw=s%2===1?t+p.swing*0.25*this.s16:t;
     if(d.band==="bchill"){this.drumsChill(d,t,tsw,s,ev,v,M,dn,ca,cm);return;}
-    if(!M.h||(cm==="beatless"&&ca>0.6)){}
-    else if(s%4===2){if(r()>=0.45*ca){this.hat(t,hv*0.38*P.hatAccent[s]*(0.85+0.3*r())*(0.8+0.45*p.energy),0.07,0.012,(r()-0.5)*0.3);ev.hat=1;this.hatBar++;}}
-    else if(s%2===1 && r()<(1-0.8*ca)*P.ghost*Math.min(1.6,0.3+1.5*p.density)){this.hat(tsw,hv*0.12*(0.6+0.6*r()),0.03,0.006,(r()-0.5)*1.2);ev.hat=Math.max(ev.hat,0.4);this.hatBar++;}
-    if(M.c&&cm!=="beatless"&&(cm==="half"?s===8:(s===4||s===12))){this.clap(t,1-0.5*ca);ev.clap=1;}
-    if(M.h&&ca<0.5&&(P.openHat||p.energy>0.72) && s%8===6){this.hat(t,0.16,0.3,0.07,0);ev.hat=1;this.hatBar++;}
-    if(!M.p){}
-    else if(d.style==="groove"){
-      const sw=s%2===1?this.s16*Math.max(0.2,p.swing*0.3):0;
-      if(r()<P.shaker[s]*dn){const acc=s%4===2?1:0.55;this.hat(t+sw,0.16*acc*(0.8+0.4*r()),0.05,0.014,0.25-0.5*(s%2),5200,this.cur.perc,"bandpass");ev.perc=Math.max(ev.perc,0.5);this.stats.perc++;}
-      if(s%4===2 && r()<0.9){this.ride(t,0.8+0.3*r());ev.perc=1;}
-      else if(s%4===3 && r()<0.25*v){this.ride(t+sw,0.45);ev.perc=Math.max(ev.perc,0.5);}
-    }else if(d.style==="tribal"){
-      const T=P.trib,g=this.step;
-      if(((g-T.off)%T.cyc+T.cyc)%T.cyc===0){this.tom(tsw,T.voiceA,0.8);ev.perc=1;}
-      if(T.b[s]>=0 && r()<T.prob*dn){this.tom(tsw,T.b[s],[0,3,6].includes(s)?1:0.7);ev.perc=1;}
-      else if(r()<T.ghost*dn){this.tom(tsw,2,0.3);ev.perc=Math.max(ev.perc,0.4);}
-    }else if(d.style==="hard"){
-      if(s%4===2 && r()<0.6*dn){this.ride(t,0.55);ev.perc=0.6;}
-    }
+    if(M.h&&!(cm==="beatless"&&ca>0.6))this.kitHat(d,K,t,tsw,s,ev,hv,ca,p);       // v21: per-deck hat family / pattern family / drift / fills
+    if(M.c&&cm!=="beatless")this.kitClap(d,K,t,tsw,s,ev,ca,cm);                    // v21: clap timbre + flams / pre-claps / phrase-end extras / dub tail
+    if(M.p)this.kitPerc(d,K,t,tsw,s,ev,dn,ca,0);                                   // v21: polyrhythmic perc layers (budget 2-3)
   }
 }
 
+/* v21: per-deck drum kits. Each deck draws its own seed-driven identity (hat timbre family + pattern family, clap timbre + variations,
+   a palette of 2-4 percussion layers with polyrhythmic cycles); a set-level preference keeps decks of one set related, and the next deck
+   avoids the outgoing deck's choices so a swap changes the drum feel. Everything evolves slowly (4-bar ghost edits, phrase-level
+   pattern / layer changes, 8-16 bar decay / filter drift) -- per-hit randomness is limited to small velocity humanising. */
+const HAT_FAM_JA={tight:"タイト",open:"オープン",metal:"909メタル",shaker:"シェイカー",ride:"ライド"};
+const HAT_PAT_JA={off:"裏打ち",e8:"8分",a16:"16分アクセント",roll:"ローリング16分",s332:"3-3-2"};
+const CLAP_JA={tight:"タイトクラップ",room:"ルームクラップ",rim:"リム",layer:"クラップ＋スネア"};
+const PERC_JA={conga:"コンガ",bongo:"ボンゴ",tom:"タム",bell:"カウベル",wood:"ウッドブロック",click:"メタルクリック",blip:"FMブリップ",shk:"シェイカー",ride:"ライド"};
+const KIT_STYLE={
+  minimal:{hat:{tight:3,metal:2,shaker:1,open:.6,ride:.4},pat:{off:3,a16:2,e8:1,roll:1,s332:.6},clap:{tight:2,rim:3,room:1,layer:.4},perc:{click:3,blip:3,wood:2,bell:.8,bongo:.6,conga:.4,tom:.3,ride:.6,shk:.4}},
+  hard:{hat:{metal:3,open:2,tight:1.5,ride:.8,shaker:.3},pat:{a16:3,roll:2,off:2,e8:1,s332:.8},clap:{layer:3,room:2,tight:1.5,rim:.3},perc:{tom:3,click:2.5,ride:2,bell:1,blip:1,wood:.5,conga:.3,bongo:.3,shk:.3}},
+  groove:{hat:{shaker:2.5,open:2,tight:1.5,ride:1.5,metal:.8},pat:{e8:2.5,a16:2,s332:1.5,off:1.5,roll:1},clap:{room:2.5,tight:2,layer:1,rim:1},perc:{conga:3,bongo:2.5,shk:2.5,bell:2,ride:1.5,wood:1,blip:.6,tom:.5,click:.5}},
+  tribal:{hat:{shaker:2.5,tight:1.5,open:1,metal:1,ride:.6},pat:{s332:3,roll:2,a16:1.5,e8:1,off:1},clap:{rim:2,room:2,tight:1,layer:1},perc:{tom:3.5,conga:3,bongo:2,wood:1.5,shk:1,bell:.6,click:.5,blip:.3}},
+  broken:{hat:{tight:2,shaker:2,metal:1.5,open:1,ride:.5},pat:{roll:2.5,a16:2,s332:1.5,e8:1,off:1},clap:{tight:2,rim:2,room:1.5,layer:1},perc:{blip:3,bongo:2,click:2,wood:1.5,conga:1,tom:.5,bell:.5,shk:.6}}};
+const HAT_NEXT={off:["e8","a16"],e8:["off","a16","s332"],a16:["roll","e8","off"],roll:["a16","s332"],s332:["e8","roll","a16"]};
+const OPEN_VARS=[[6,14],[14],[6],[10],[2,10],[14,"odd"],[6,"odd"]];
+const PERC_BASE={conga:[57,[0,7,12,3]],bongo:[69,[0,7,3,12]],tom:[45,[0,7,12,5]],bell:[81,[0,7]],wood:[81,[0,7,3]],blip:[81,[0,3,7,10,12]]};   // in key: minor-pent degrees
+const PERC_CYC={conga:[16,16,3,6],bongo:[16,3,6,5],tom:[3,5,16,6],bell:[16,16,5],wood:[5,7,3,16],click:[16,5,7,3],blip:[3,5,7,16],shk:[16],ride:[16]};
+const PERC_LVL={conga:.34,bongo:.24,tom:.36,bell:.1,wood:.15,click:.13,blip:.1,shk:.15,ride:.8};
+function h3(a,b,c){let x=(a*374761393+b*668265263+c*2246822519)|0;x=Math.imul(x^x>>>13,1274126177);x^=x>>>16;return (x>>>0)/4294967296;}
+Object.assign(Engine.prototype,{
+  kitPick(o,r){let s=0;for(const k in o)s+=o[k];let x=r()*s;for(const k in o){x-=o[k];if(x<=0&&o[k]>0)return k;}return Object.keys(o).find(k=>o[k]>0);},
+  makeKit(d){const r=this.dr||(this.dr=mulberry32(this.seed^0xd21d)),st=KIT_STYLE[d.style]||KIT_STYLE.minimal,ch=d.band==="bchill",prev=this.low&&this.low!==d&&this.low.kit;
+    if(!this.drumSet){const p0=KIT_STYLE.minimal;this.drumSet={hat:this.kitPick(p0.hat,r),clap:this.kitPick(p0.clap,r),perc:[this.kitPick(p0.perc,r),this.kitPick(KIT_STYLE.groove.perc,r)]};}
+    const DS=this.drumSet;
+    const W=(o,kind,prevV,fav)=>{const out={};for(const k in o){let w=o[k];
+        if(ch&&kind==="hat"&&!["tight","shaker","ride"].includes(k))w*=0.12;if(ch&&kind==="pat"&&["roll","a16"].includes(k))w*=0.3;
+        if(ch&&kind==="perc"&&["click","tom","ride"].includes(k))w*=0.3;
+        if(fav&&(Array.isArray(fav)?fav.includes(k):fav===k))w*=2;                 // set coherence
+        if(prevV&&(Array.isArray(prevV)?prevV.includes(k):prevV===k))w*=0.35;       // a swap changes the feel
+        out[k]=w;}return out;};
+    const K={id:Math.floor(r()*1e6),hat:{fam:this.kitPick(W(st.hat,"hat",prev&&prev.hat.fam,DS.hat),r),pat:this.kitPick(W(st.pat,"pat",prev&&prev.hat.pat),r),
+        open:OPEN_VARS[Math.floor(r()*OPEN_VARS.length)],lp:r()<0.5?8:16,ph:r(),ld:0.25+0.35*r(),dbl:new Set()},
+      clap:{tim:this.kitPick(W(st.clap,"clap",prev&&prev.clap.tim,DS.clap),r),flam:r()<0.45?0.25+0.3*r():0,pre:r()<0.4?0.2+0.3*r():0,preS:[11,3,7,15][Math.floor(r()*4)],
+        extra:r()<0.55?0.4+0.4*r():0,exS:[14,15,10][Math.floor(r()*3)],tail:r()<0.45},
+      perc:[],bp:r()<0.5?16:32,bph:r(),fill:null,cr:r()<0.5};
+    this.genHat(K.hat,r);
+    const pw=W(st.perc,"perc",prev&&prev.perc.filter(x=>x.on).map(x=>x.kind),DS.perc),n=ch?2+(r()<0.4?1:0):3+(r()<0.5?1:0);
+    for(let i=0;i<n;i++){const k=this.kitPick(pw,r);if(!k)break;pw[k]=0;K.perc.push(this.genPerc(k,r,ch));}
+    const nOn=ch?1:(r()<0.35?1:2);K.perc.forEach((L,i)=>L.on=i<nOn);this.kitRoles(K);
+    return K;},
+  genHat(H,r){const v=new Array(16).fill(0),P=H.pat,g=(n,set)=>{for(let i=0;i<n;i++){const s=set[Math.floor(r()*set.length)];if(!v[s])v[s]=0.3+0.15*r();}};
+    if(P==="off"){for(const s of [2,6,10,14])v[s]=1;g(1+Math.floor(r()*2),[1,3,5,7,9,11,13,15]);}
+    else if(P==="e8"){for(let s=0;s<16;s+=2)v[s]=s%4===2?1:0.5+0.1*r();g(1,[3,7,11,15,1,5,9,13]);}
+    else if(P==="a16"){for(let s=0;s<16;s++)v[s]=s%4===2?1:(s%2===0?0.55+0.1*r():0.32+0.15*r());}
+    else if(P==="roll"){for(let s=0;s<16;s++)v[s]=s%4===2?1:(s%2===0?0.45:(r()<0.75?0.25+0.2*r():0));H.dbl=new Set([[7,15],[15],[11,15],[3,11]][Math.floor(r()*4)]);}
+    else{for(const s of [0,3,6,8,11,14])v[s]=0.85;v[2]=Math.max(v[2],0.75);v[10]=Math.max(v[10],0.75);g(1,[1,5,9,13]);}   // 3-3-2 over the bar, offbeats kept
+    H.v=v;},
+  genPerc(kind,r,ch){const cyc=PERC_CYC[kind][Math.floor(r()*PERC_CYC[kind].length)],L={kind,cyc,id:Math.floor(r()*1e6),off:Math.floor(r()*cyc),hits:[],pan:(r()-0.5)*0.9,lvl:PERC_LVL[kind]*(ch?0.65:1),pi:0,on:false,role:"both"};
+    if(kind==="shk"){for(let s=0;s<16;s++)if(s%4===2)L.hits.push({o:s,a:1});else if(s%2===1&&r()<0.6)L.hits.push({o:s,a:0.5});else if(s%4===0&&r()<0.3)L.hits.push({o:s,a:0.35});}
+    else if(kind==="ride"){for(const s of [2,6,10,14])L.hits.push({o:s,a:1});if(r()<0.5)L.hits.push({o:[7,15,11][Math.floor(r()*3)],a:0.5});}
+    else if(cyc===16){const pool=[3,6,7,10,11,14,15,2,13,5],k=2+Math.floor(r()*(ch?2:3)),used=new Set();
+      while(used.size<k){used.add(pool[Math.floor(r()*(used.size<2?7:pool.length))]);}
+      for(const s of [...used].sort((a,b)=>a-b))L.hits.push({o:s,a:used.size&&s===[...used][0]?1:(r()<0.5?1:0.6)});}
+    else{L.hits.push({o:0,a:1});if(cyc>=5&&r()<0.6)L.hits.push({o:2+Math.floor(r()*(cyc-3)),a:0.6});}
+    const B=PERC_BASE[kind];if(B){const m=[0];const n=1+Math.floor(r()*3);for(let i=0;i<n;i++)m.push(B[1][1+Math.floor(r()*(B[1].length-1))]);L.pm=m.map(x=>B[0]+x);}
+    return L;},
+  kitRoles(K){const on=K.perc.filter(x=>x.on);for(const L of K.perc)L.role="both";if(K.cr&&on.length>=2){on[0].role="call";on[1].role="resp";}},
+  // bar hook: slow evolution + phrase-level layer changes + fills
+  kitBar(d){const K=d.kit;if(!K)return;const r=this.dr,bar=this.bar,H=K.hat,ch=d.band==="bchill";
+    if(bar>0&&bar%4===0&&r()<0.6){const odd=[1,3,5,7,9,11,13,15].filter(s=>!(H.pat==="s332"&&[3,11].includes(s))),s=odd[Math.floor(r()*odd.length)],ng=H.v.filter((x,i)=>i%2&&x>0).length;
+      if(H.v[s]>0&&H.v[s]<0.7)H.v[s]=0;else if(!H.v[s]&&ng<(H.pat==="a16"||H.pat==="roll"?8:3))H.v[s]=0.28+0.15*r();}
+    if(bar>0&&bar%16===0){
+      if(r()<0.22){H.pat=HAT_NEXT[H.pat][Math.floor(r()*HAT_NEXT[H.pat].length)];this.genHat(H,r);}
+      if(r()<0.08&&!ch){const st=KIT_STYLE[d.style]||KIT_STYLE.minimal;H.fam=this.kitPick(st.hat,r);}
+      if(r()<0.4){H.lp=r()<0.5?8:16;}
+      const on=K.perc.filter(x=>x.on),off=K.perc.filter(x=>!x.on),mx=ch?2:(this.cond.p.energy>0.6?3:2),x=r();
+      if(x<0.3&&on.length<mx&&off.length)off[Math.floor(r()*off.length)].on=true;
+      else if(x<0.55&&on.length>1)on[Math.floor(r()*on.length)].on=false;
+      else if(x<0.72&&off.length&&on.length){on[Math.floor(r()*on.length)].on=false;off[Math.floor(r()*off.length)].on=true;}
+      while(K.perc.filter(x=>x.on).length>mx)K.perc.filter(x=>x.on).pop().on=false;
+      for(const L of K.perc){if(r()<0.25)L.off=(L.off+1)%L.cyc;if(L.pm&&r()<0.25)L.pm.push(L.pm.shift());
+        if(L.cyc===16&&L.kind!=="shk"&&L.kind!=="ride"&&r()<0.25){const i=Math.floor(r()*L.hits.length);const o=[3,6,7,10,11,14,15][Math.floor(r()*7)];if(!L.hits.some(h=>h.o===o))L.hits[i]={o,a:L.hits[i].a};}}
+      if(r()<0.3)K.cr=!K.cr;this.kitRoles(K);
+      if(r()<0.15)K.clap.flam=K.clap.flam?0:0.3+0.4*r();if(r()<0.15)K.clap.pre=K.clap.pre?0:0.3+0.3*r();}
+    if(bar%8===0&&r()<0.3)H.open=OPEN_VARS[Math.floor(r()*OPEN_VARS.length)];
+    K.fill=null;if(!this.drop.active&&!ch){const p=bar%16===15?0.5:(bar%8===7?0.2:0);if(r()<p)K.fill=["roll","open","stut","drop"][Math.floor(r()*4)];}},
+  kitHat(d,K,t,tsw,s,ev,hv,ca,p){const H=K.hat,P=d.pat,bar=this.bar,s16=this.s16,ph=2*Math.PI*((bar+s/16)/H.lp+H.ph),tm=1+H.ld*Math.sin(ph),fm=1+0.1*Math.sin(ph*0.5+1);
+    const F=K.fill,hum=()=>0.88+0.24*this.rand(),en=0.8+0.45*p.energy;let vv=H.v[s];
+    const openOK=(P.openHat||p.energy>0.72)&&ca<0.5,ov=H.open,isOpen=openOK&&ov.includes(s)&&(!ov.includes("odd")||bar%2===1);
+    if(F==="drop"&&s>=12)return;
+    if(F==="roll"&&s>=12){for(const f of [0,0.5]){const k=(s-12+f)/4;this.kitHatHit(H,t+f*s16,hv*(0.12+0.3*k)*en,tm*0.7,fm,false,this.cur.hat);}ev.hat=1;this.hatBar++;return;}
+    if(F==="stut"&&s>=8){this.kitHatHit(H,s%2?tsw:t,hv*(0.14+0.3*(s-8)/8)*en,tm*0.8,fm,false,this.cur.hat);ev.hat=1;this.hatBar++;return;}
+    if(F==="open"&&s>=14){if(s===14){this.kitHatHit(H,t,hv*0.2,tm*1.6,fm,true,this.cur.hat);ev.hat=1;this.hatBar++;}return;}
+    if(isOpen){this.kitHatHit(H,t,hv*0.17*en/1.1,tm,fm,true,this.cur.hat);ev.hat=1;this.hatBar++;return;}
+    if(!vv)return;
+    const main=vv>=0.7;
+    if(main){if(this.rand()<0.45*ca)return;}
+    else if(h3(K.id,bar,s)>(1-0.8*ca)*Math.min(1,0.35+1.1*p.density))return;   // ghosts thin out with density (deterministic per bar/step)
+    const tt=s%2?tsw:t,vel=hv*(main?0.38*P.hatAccent[s]:0.36*vv)*hum()*(main?en:1);
+    this.kitHatHit(H,tt,vel,tm,fm,false,this.cur.hat);if(H.dbl.has(s))this.kitHatHit(H,tt+s16/2,vel*0.45,tm*0.8,fm,false,this.cur.hat);
+    ev.hat=Math.max(ev.hat,main?1:0.4);this.hatBar++;},
+  kitHatHit(H,t,vel,tm,fm,open,bus){const pan=(this.rand()-0.5)*0.35;
+    switch(H.fam){
+      case "metal":if(open)this.metalHat(t,vel*0.9,0.075*tm,bus);else this.metalHat(t,vel,0.016*tm,bus);break;
+      case "shaker":if(open)this.hat(t,vel*0.9,0.2,0.05*tm,pan,6000*fm,bus,"bandpass");else this.hat(t,vel*1.1,0.05,0.016*tm,pan,5600*fm,bus,"bandpass");break;
+      case "ride":if(open||vel>0.2)this.ride(t,open?1.1:vel*2.6,bus);else this.hat(t,vel,0.03,0.008*tm,pan,8000*fm,bus);break;
+      case "open":if(open)this.hat(t,vel,0.35,0.09*tm,pan,6800*fm,bus);else this.hat(t,vel,0.07,0.022*tm,pan,7200*fm,bus);break;
+      default:if(open)this.hat(t,vel,0.3,0.065*tm,pan,7500*fm,bus);else this.hat(t,vel,0.05,0.01*tm,pan,8600*fm,bus);}},
+  metalHat(t,vel,tau,bus=this.cur.hat){const c=this.ctx,bp=c.createBiquadFilter(),hp=c.createBiquadFilter(),g=c.createGain(),end=t+Math.max(0.08,tau*8);
+    bp.type="bandpass";bp.frequency.value=10500;bp.Q.value=0.9;hp.type="highpass";hp.frequency.value=7200;
+    g.gain.setValueAtTime(vel*0.55,t);g.gain.setTargetAtTime(0,t,tau);
+    const os=[];for(const f of [263,400,421,600,756,1000]){const o=c.createOscillator();o.type="square";o.frequency.value=f*2.1;o.connect(bp);o.start(t);o.stop(end);os.push(o);}
+    bp.connect(hp).connect(g).connect(bus);this.hat(t,vel*0.45,0.04,tau*0.7,0,9000,bus);
+    os[0].onended=()=>{for(const o of os)o.disconnect();bp.disconnect();hp.disconnect();g.disconnect();};},
+  kitClap(d,K,t,tsw,s,ev,ca,cm){const C=K.clap,bar=this.bar,vel=1-0.5*ca,main=cm==="half"?s===8:(s===4||s===12),lite=C.tim==="layer"?"tight":C.tim;
+    if(main){if(C.flam&&h3(K.id+7,bar,s)<C.flam)this.clapK(t-0.019,vel*0.38,lite);
+      this.clapK(t,vel,C.tim,C.tail&&bar%4===3&&s===12);ev.clap=1;return;}
+    if(this.drop.active||cm==="half")return;
+    if(C.pre&&s===C.preS&&h3(K.id+3,bar,s)<C.pre){this.clapK(s%2?tsw:t,0.22*vel,lite);ev.clap=Math.max(ev.clap,0.3);}
+    if(C.extra&&bar%8===7&&s===C.exS&&h3(K.id+5,bar>>3,s)<C.extra){this.clapK(s%2?tsw:t,0.55*vel,lite);ev.clap=Math.max(ev.clap,0.6);}},
+  clapK(t,vel,tim,tail){const c=this.ctx,bus=this.cur.clap;
+    if(tim==="rim"){const n=this.noiseSrc(t,0.05),bp=c.createBiquadFilter(),g=c.createGain(),o=c.createOscillator(),og=c.createGain();
+      bp.type="bandpass";bp.frequency.value=1900;bp.Q.value=2.5;g.gain.setValueAtTime(0.42*vel,t);g.gain.setTargetAtTime(0,t,0.014);
+      o.type="triangle";o.frequency.value=mtof(81+keyOff());og.gain.setValueAtTime(0.2*vel,t);og.gain.setTargetAtTime(0,t,0.012);   // in key
+      n.connect(bp).connect(g).connect(bus);o.connect(og).connect(bus);o.start(t);o.stop(t+0.12);this.free(n,bp,g);this.free(o,og);
+      if(tail){const s2=c.createGain();s2.gain.value=0.5;g.connect(s2).connect(this.send);o.addEventListener("ended",()=>s2.disconnect());}return;}
+    const room=tim==="room",n=this.noiseSrc(t,room?0.8:0.5),bp=c.createBiquadFilter(),g=c.createGain();
+    bp.type="bandpass";bp.frequency.value=room?1450:1700;bp.Q.value=room?0.9:1.2;
+    const v=0.32*vel*(tim==="layer"?0.85:1);g.gain.setValueAtTime(0,t);
+    for(const o of [0,0.011,0.022]){g.gain.setValueAtTime(v,t+o);g.gain.setTargetAtTime(0,t+o,0.006);}
+    g.gain.setValueAtTime(v*(room?0.7:0.8),t+0.03);g.gain.setTargetAtTime(0,t+0.03,room?0.1:0.045);
+    n.connect(bp).connect(g).connect(bus);const xs=[];
+    if(room){const vs=c.createGain();vs.gain.value=0.3;g.connect(vs).connect(this.upVerb);xs.push(vs);}
+    if(tail){const ds=c.createGain();ds.gain.value=0.45;g.connect(ds).connect(this.send);xs.push(ds);}
+    this.free(n,bp,g,...xs);
+    if(tim==="layer"){const n2=this.noiseSrc(t,0.3),b2=c.createBiquadFilter(),g2=c.createGain(),o=c.createOscillator(),og=c.createGain();
+      b2.type="bandpass";b2.frequency.value=2300;b2.Q.value=0.7;g2.gain.setValueAtTime(0.2*vel,t);g2.gain.setTargetAtTime(0,t,0.05);
+      o.type="triangle";o.frequency.setValueAtTime(mtof(55+keyOff()),t);o.frequency.exponentialRampToValueAtTime(mtof(50+keyOff()),t+0.05);   // body: key root -> 5th below
+      og.gain.setValueAtTime(0.2*vel,t);og.gain.setTargetAtTime(0,t,0.035);
+      n2.connect(b2).connect(g2).connect(bus);o.connect(og).connect(bus);o.start(t);o.stop(t+0.25);this.free(n2,b2,g2);this.free(o,og);}},
+  kitPerc(d,K,t,tsw,s,ev,dn,ca,ch){const g=this.step,bar=this.bar;let act=K.perc.filter(L=>L.on);
+    if(this.jazz&&this.jazz.on)act=act.slice(0,1);                             // the jazzy ride / brushes take the room
+    const two=act.filter(L=>L.role!=="both").length===2,br=0.62+0.38*Math.sin(2*Math.PI*(bar/K.bp+K.bph));
+    for(const L of act){if(two&&L.role==="call"&&bar%2===1&&s>=8)continue;if(two&&L.role==="resp"&&(bar%2===0||s<8))continue;   // call / response
+      const ph=L.cyc===16?s:((g-L.off)%L.cyc+L.cyc)%L.cyc,hit=L.hits.find(x=>x.o===ph);if(!hit)continue;
+      if(hit.a<0.9&&h3(L.id,g,1)>br*Math.min(1,dn+0.15))continue;               // density breathing (seeded)
+      const m=L.pm?L.pm[(L.pi++)%L.pm.length]+keyOff():0,tt=s%2?tsw:t;
+      this.pz(tt,L.kind,m,hit.a*L.lvl*(1-0.4*ca)*(0.9+0.2*this.rand()),L.pan);ev.perc=Math.max(ev.perc,hit.a);this.stats.perc++;}},
+  pz(t,kind,midi,vel,pan){const c=this.ctx,bus=this.cur.perc,P=c.createStereoPanner();P.pan.value=pan;P.connect(bus);
+    if(kind==="shk"){this.hat(t,vel,0.05,0.014,pan,5200,bus,"bandpass");P.disconnect();return;}
+    if(kind==="ride"){this.ride(t,vel,bus);P.disconnect();return;}
+    if(kind==="click"){const n=this.noiseSrc(t,0.03),bp=c.createBiquadFilter(),g=c.createGain();bp.type="bandpass";bp.frequency.value=6500+2000*((Math.abs(pan)*7)%1);bp.Q.value=9;
+      g.gain.setValueAtTime(vel*1.6,t);g.gain.setTargetAtTime(0,t,0.008);n.connect(bp).connect(g).connect(P);this.free(n,bp,g,P);return;}
+    const f=mtof(midi),o=c.createOscillator(),g=c.createGain();let end;
+    if(kind==="bell"){const o2=c.createOscillator(),bp=c.createBiquadFilter();o.type="square";o2.type="square";o.frequency.value=f;o2.frequency.value=mtof(midi+7);
+      bp.type="bandpass";bp.frequency.value=f*2;bp.Q.value=1.6;g.gain.setValueAtTime(vel,t);g.gain.setTargetAtTime(vel*0.3,t,0.012);g.gain.setTargetAtTime(0,t+0.02,0.06);
+      o.connect(bp);o2.connect(bp);bp.connect(g).connect(P);end=t+0.5;o.start(t);o2.start(t);o.stop(end);o2.stop(end);this.free(o,o2,bp,g,P);return;}
+    if(kind==="blip"){const m=c.createOscillator(),mg=c.createGain();o.type="sine";m.type="sine";o.frequency.value=f;m.frequency.value=f*2;
+      mg.gain.setValueAtTime(f*2.2,t);mg.gain.setTargetAtTime(0,t,0.02);m.connect(mg).connect(o.frequency);
+      g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vel,t+0.002);g.gain.setTargetAtTime(0,t+0.002,0.035);
+      o.connect(g).connect(P);end=t+0.3;o.start(t);m.start(t);o.stop(end);m.stop(end);this.free(o,m,mg,g,P);return;}
+    const tau={conga:0.16,bongo:0.08,tom:0.2,wood:0.025}[kind]||0.1,bend={conga:1.5,bongo:1.35,tom:1.8,wood:1.08}[kind]||1.3,bt={conga:0.025,bongo:0.015,tom:0.045,wood:0.006}[kind]||0.02;
+    o.type=kind==="wood"?"triangle":"sine";o.frequency.setValueAtTime(f*bend,t);o.frequency.exponentialRampToValueAtTime(f,t+bt);
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vel,t+0.002);g.gain.setTargetAtTime(0,t+0.003,tau);
+    end=t+tau*9;o.connect(g).connect(P);o.start(t);o.stop(end);this.free(o,g,P);
+    if(kind!=="wood")this.hat(t,vel*(kind==="bongo"?0.4:0.3),0.012,0.004,pan,kind==="bongo"?3800:2600,bus,"bandpass");   // slap
+    else this.hat(t,vel*0.5,0.01,0.003,pan,2200,bus,"bandpass");},
+  kitDesc(K){if(!K)return "";const on=K.perc.filter(x=>x.on).map(x=>PERC_JA[x.kind]);return `${HAT_FAM_JA[K.hat.fam]}ハット・${HAT_PAT_JA[K.hat.pat]}／${CLAP_JA[K.clap.tim]}${on.length?"／"+on.join("・"):""}`;},
+});
+
 // chill band percussion: soft off-beat hats, dub rim / half-time backbeat, shakers, soft toms (organic), almost nothing for ambient
-Engine.prototype.drumsChill=function(d,t,tsw,s,ev,v,M,dn,ca,cm){const P=d.pat,r=this.rand,p=this.cond.p,st=d.style,kill=cm==="beatless"&&ca>0.6,hv=1-0.5*ca;
+Engine.prototype.drumsChill=function(d,t,tsw,s,ev,v,M,dn,ca,cm){const P=d.pat,r=this.rand,p=this.cond.p,st=d.style,kill=cm==="beatless"&&ca>0.6,hv=1-0.5*ca,K=d.kit,ph=2*Math.PI*((this.bar+s/16)/K.hat.lp+K.hat.ph),tm=1+K.hat.ld*Math.sin(ph),fm=1+0.1*Math.sin(ph*0.5+1);
   if(M.h&&!kill){
-    if(s%4===2&&r()<(st==="hard"?0.45:0.85)*(1-0.45*ca)){this.hat(t,hv*0.2*P.hatAccent[s]*(0.8+0.3*r()),0.06,0.014,(r()-0.5)*0.4,6500);ev.hat=1;this.hatBar++;}
-    else if(s%2===1&&st!=="hard"&&r()<(1-0.8*ca)*P.ghost*0.6*Math.min(1.4,0.3+1.5*p.density)){this.hat(tsw,hv*0.07*(0.6+0.6*r()),0.03,0.006,(r()-0.5)*1.2,7500);ev.hat=Math.max(ev.hat,0.4);this.hatBar++;}}
+    if(s%4===2&&r()<(st==="hard"?0.45:0.85)*(1-0.45*ca)){this.kitHatHit(K.hat,t,hv*0.2*P.hatAccent[s]*(0.8+0.3*r()),tm*1.2,fm*0.8,false,this.cur.hat);ev.hat=1;this.hatBar++;}
+    else if(s%2===1&&st!=="hard"&&r()<(1-0.8*ca)*P.ghost*0.6*Math.min(1.4,0.3+1.5*p.density)){this.kitHatHit(K.hat,tsw,hv*0.07*(0.6+0.6*r()),tm*0.6,fm*0.9,false,this.cur.hat);ev.hat=Math.max(ev.hat,0.4);this.hatBar++;}}
   if(M.c&&!kill){
     if(st==="broken"&&s===8){this.clap(t,0.55*hv);this.snare(t,0.22*hv);ev.clap=1;}
+    else if((st==="groove"||st==="minimal")&&s===12&&r()<0.85&&K.clap.tim==="rim"){this.clapK(t,0.32*hv,"rim");ev.clap=0.6;}
     else if((st==="groove"||st==="minimal")&&s===12&&r()<0.85){this.hat(t,0.16*hv,0.02,0.01,0.15,1800,this.cur.clap,"bandpass");ev.clap=0.6;}}   // dub rim
   if(!M.p||kill)return;
-  if((st==="groove"||st==="broken"||st==="tribal")&&r()<P.shaker[s]*dn*0.7){const acc=s%4===2?1:0.55;this.hat(tsw,0.1*acc*(0.8+0.4*r()),0.05,0.016,0.25-0.5*(s%2),4800,this.cur.perc,"bandpass");ev.perc=Math.max(ev.perc,0.5);this.stats.perc++;}
-  if(st==="tribal"){const T=P.trib,g=this.step;
-    if(((g-T.off)%T.cyc+T.cyc)%T.cyc===0&&r()<0.8){this.tom(tsw,T.voiceA,0.5);ev.perc=1;}
-    if(T.b[s]>=0&&r()<T.prob*dn*0.6){this.tom(tsw,T.b[s],0.45);ev.perc=1;}}
-  if(st==="minimal"&&s%8===6&&r()<0.35*dn){this.ride(t,0.4);ev.perc=0.5;}
+  if(st!=="hard")this.kitPerc(d,K,t,tsw,s,ev,dn*(st==="minimal"?0.5:0.75),ca,1);   // v21: kit percussion (chill: softer, 1-2 layers)
   if(st==="hard"&&s===0&&this.bar%4===2&&r()<0.5){this.noiseWash(t,2*16*this.s16,0.018,this.cur.perc);}
 };
 
@@ -2004,6 +2147,7 @@ function updatePanel(){
     const on=special?ph===special:(ph==="chill"?chOn:(!chOn&&cur&&cur.phase===ph));
     return `<span class="${on?"on":""}${ph==="chill"?" ch":""}${ph==="opening"||ph==="closing"?" oc":""}">${phJa(ph,C.band)}</span>`;}).join("");
   $("upinfo").textContent="上モノ："+eng.decks.filter(d=>d.upOn&&d.arr.init).map(d=>`${C.ja(d.style)}＝${((d.arr.chillPatch||patchList(d)[d.arr.variant])||{}).ja}・${SECTION_JA[d.arr.section]}`).join(" ／ ")
+    +(eng.low&&eng.low.kit?` ／ ドラム：${eng.kitDesc(eng.low.kit)}`:"")
     +(eng.jazz&&eng.jazz.on?` ／ ジャジー（エレピ ${eng.jazz.last||(eng.jazz.m11?"m11":"m9")}・${eng.jazz.ride?"ライド":"シェイカー"}${eng.jazz.walk?"・ウォーキングベース":""}・あと${Math.max(0,eng.jazz.end-b)}小節）`:"")
     +(eng.chip&&eng.chip.on?` ／ チップチューン（${eng.chip.mode==="arp"?"アルペジオ":"リード"}・あと${Math.max(0,eng.chip.end-b)}小節）`:"");
   if(M){const pr=Math.max(0,Math.min(1,(b-M.m)/M.L));$("mixbar").style.width=(pr*100)+"%";
