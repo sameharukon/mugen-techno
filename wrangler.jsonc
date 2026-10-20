@@ -7,5 +7,6 @@
     "directory": "./live"
   },
   "workers_dev": true,
+  "routes": [{ "pattern": "mugentechno.sameharu.me", "custom_domain": true }],
   "preview_urls": false
 }

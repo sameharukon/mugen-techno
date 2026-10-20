@@ -220,7 +220,7 @@ node v23_contrast.mjs        # ラベル、HTML、シード数、小節数
 
 ## 公開
 
-ライブの URL は https://techno-generator.sameworker.workers.dev です。リポジトリのルートで次を実行すると、`live/` を Cloudflare Workers の静的サイトとしてデプロイします。
+ライブの URL は https://mugentechno.sameharu.me/ です。https://techno-generator.sameworker.workers.dev でも同じサイトを開けます。リポジトリのルートで次を実行すると、`live/` を Cloudflare Workers の静的サイトとしてデプロイします。
 
 ```bash
 npm i && npx wrangler deploy
