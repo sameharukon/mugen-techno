@@ -1,10 +1,17 @@
 // v8: tempo bands / setlists / upper variety / kick-drop variety (long おまかせ renders) + beatless band changes.
 // usage: node v8_sets.mjs [tempo|band|all]
 import { chromium } from 'playwright-core';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
 const which=process.argv[2]||'all';
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
+const b=await chromeLaunch(['--no-sandbox']);
 const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
-await p.goto('file:///workspace/techno/live/index.html');
+await p.goto(fileUrl(HTML));
 const barStarts=bpmLog=>{const T=[];let t=0.01;for(const r of bpmLog){T.push(t);t+=16*60/r[1]/4;}T.push(t);return T;};
 function analyseSet(name,o){
   const B=o.bpmLog.map(r=>r[1]),bars=B.length;

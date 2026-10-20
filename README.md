@@ -172,7 +172,7 @@ Playwright で `live/index.html` を開く Node テストです。`smoke5.mjs` �
 - `intent_breaks.mjs` — 「ブレイク入れて」や種類名が、どのブレイクになるかの対応
 - `break_analysis.mjs` — 各ブレイクをオフラインでレンダーし、ピーク、復帰のダウンビート、プローブの連続性を見る
 - `v8_sets.mjs` — 120帯 / 140帯の長めのおまかせで、フレーズあたりのテンポ変化、セットリストの弧、上モノの展開、キック抜きの重複のなさを見る。帯の切り替えはビートレスかも見る。引数は `tempo`、`band`、`all`（省略時は `all`）
-- `v8_kickmorph.mjs` — ミックス中のキック質感を、ヒットの帯域エネルギーとキック同士の変化量で測る。比較用に `index.v7.bak.html` も開く
+- `v8_kickmorph.mjs` — ミックス中のキック質感を、ヒットの帯域エネルギーとキック同士の変化量で測る。`live/index.v7.bak.html` があるときだけ、古い版との比較も行う。無いときはその比較を飛ばして知らせる
 - `v9_chill.mjs` — 両帯の長めのおまかせで、チルの間隔、エネルギー、ハットとキックの少なさを見る。指定したチルは入りと復帰のダウンビートを見る。引数は `long`、`demand`、`all`（省略時は `all`）
 - `v11_openclose.mjs` — 各帯のオープニング（キックが 17 小節目に入ること）とクロージング（フレーズ境界、キックアウト、余韻、予定の取消、即停止）を見る。引数は `offline`、`live`、`all`（省略時は `all`）
 - `v11_chillband.mjs` — チル帯の長めのおまかせで、テンポ、穏やかなキック抜き、チル展開を挟まないこと、エネルギーを見る。他の帯とのブリッジも見る。引数は `set`、`level`、`band`、`all`（省略時は `all`）
@@ -190,10 +190,13 @@ Playwright で `live/index.html` を開く Node テストです。`smoke5.mjs` �
 - `v24_ui.mjs` — 再生中にパネルの位置と大きさが動かないこと、英語表示に日本語が残らないこと、JA / EN の切り替えが `localStorage` に残ることを見る。引数は英語での帯あたりの秒数（省略時 120）
 - `v24_i18n_cov.mjs` — おまかせと意図ボタンで出る文言を英語に通し、日本語が残るものを探す。引数はシード数（省略時 3）、小節数（省略時 320）
 
+`live/test` で実行します。別の Chrome を使うときは `CHROME_PATH` に実行ファイルのパスを渡します。未設定なら Playwright 同梱のブラウザです。
+
 ```bash
 cd live/test
 npm install
 npx playwright install chromium
+# CHROME_PATH=/usr/bin/google-chrome node smoke5.mjs
 node smoke5.mjs
 node smoke6_breaks.mjs
 node smoke7_log.mjs
@@ -222,7 +225,7 @@ node v24_ui.mjs              # 英語での帯あたりの秒数
 node v24_i18n_cov.mjs        # シード数、小節数
 ```
 
-各スクリプトはページを `file:///workspace/techno/live/index.html` として開き、Chrome を `/usr/bin/google-chrome` から起動します。既存のスモークテストは、ブラウザのロケールを `ja-JP` にしない限り英語表示で動きます。`smoke5.mjs`、`smoke6_breaks.mjs`、`smoke7_log.mjs` は `?noopening` を付けてオープニングを飛ばします。`break_analysis.mjs` は引数で HTML のパスを渡せます。`smoke5.mjs` と `shot.mjs` は `live/test/screenshot.png` を、`smoke6_breaks.mjs` は `live/test/screenshot_break.png` を上書きします。
+各スクリプトは、自分の場所から `../index.html` を開きます。`CHROME_PATH` があればその Chrome を使い、無ければ Playwright 同梱のブラウザを使います。既存のスモークテストは、ブラウザのロケールを `ja-JP` にしない限り英語表示で動きます。`smoke5.mjs`、`smoke6_breaks.mjs`、`smoke7_log.mjs` は `?noopening` を付けてオープニングを飛ばします。`break_analysis.mjs` は引数で HTML のパスを渡せます。`smoke5.mjs` と `shot.mjs` は `live/test/screenshot.png` を、`smoke6_breaks.mjs` は `live/test/screenshot_break.png` を上書きします。
 
 ## 公開
 

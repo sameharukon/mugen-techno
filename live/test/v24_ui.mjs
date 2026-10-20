@@ -2,17 +2,24 @@
 // and buttons every second, scans the EN DOM (text + tooltips) for leftover Japanese, switches language live, takes screenshots.
 // usage: node v24_ui.mjs [secondsPerBandEN=120]
 import { chromium } from 'playwright-core';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
 const SEC=+(process.argv[2]||120);
 const JA_RE=/[\u3040-\u30ff\u3400-\u9fff\uff00-\uffef\u3000-\u303f]/;
 const SEL=['main','#viz','.top','#play','#bandbchill','#bandb120','#bandb140','.vol','#status','.cols','.cols>.card:nth-child(1)','.cols>.card:nth-child(2)',
   '#holdinfo','#intents','#breaks','.interpbox','#interp','#suggest','#logwrap','#log','#logcount','#phrase','.styles','#nowStyle','#arrow','#nextStyle','.keyrow','#keyinfo','#bpm',
   '#setlist','#arc','.prog','#mixinfo','#upinfo','#meters','#timeline','#langsel'];
-const b = await chromium.launch({ executablePath:'/usr/bin/google-chrome', args:['--autoplay-policy=no-user-gesture-required','--no-sandbox'] });
+const b = await chromeLaunch(['--autoplay-policy=no-user-gesture-required','--no-sandbox']);
 const out={runs:[]};
 async function run({lang,w,bands,sec,shot,switchLive,narrow}){
   const ctx=await b.newContext({viewport:{width:w,height:1000},locale:lang==='ja'?'ja-JP':'en-US'});const p=await ctx.newPage();const errs=[];
   p.on('console',m=>{if(m.type()==='error'||m.type()==='warning')errs.push(m.type()+': '+m.text());});p.on('pageerror',e=>errs.push('pageerror: '+e.message));
-  await p.goto('file:///workspace/techno/live/index.html');await p.waitForTimeout(400);
+  await p.goto(fileUrl(HTML));await p.waitForTimeout(400);
   const htmlLang=await p.evaluate(()=>document.documentElement.lang);
   const rects=()=>p.evaluate(S=>Object.fromEntries(S.map(s=>{const e=document.querySelector(s);if(!e)return [s,null];const r=e.getBoundingClientRect();return [s,[r.x,r.y+scrollY,r.width,r.height].map(v=>+v.toFixed(2))];})),SEL);
   const scanJa=()=>p.evaluate(src=>{const re=new RegExp(src);const hits=[];
@@ -32,7 +39,7 @@ async function run({lang,w,bands,sec,shot,switchLive,narrow}){
       const r=await rects();samples++;
       for(const [s,v] of Object.entries(r)){if(!v)continue;if(!base[s])base[s]=v;const d=Math.max(...v.map((x,k)=>Math.abs(x-base[s][k])));maxD[s]=Math.max(maxD[s]||0,d);}
       if(lang==='en'&&(i%5===4||i===sec-1))for(const h of await scanJa())ja.add(h);
-      if(shot&&band===bands[0]&&i===Math.min(sec-1,45))await p.screenshot({path:'/workspace/techno/live/test/'+shot});}
+      if(shot&&band===bands[0]&&i===Math.min(sec-1,45))await p.screenshot({path:join(HERE, shot)});}
     }
   const extra={};
   if(narrow)extra.narrow=await p.evaluate(()=>{const c=[...document.querySelectorAll('.cols>.card')].map(e=>e.getBoundingClientRect());

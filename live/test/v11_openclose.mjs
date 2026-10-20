@@ -4,8 +4,15 @@
 //  live    : real-time UI — opening state, ストップ → クロージング中 (remaining bars) → auto stop; Space → closing → Space → immediate stop
 // usage: node v11_openclose.mjs [offline|live|all]
 import { chromium } from 'playwright-core';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
 const which=process.argv[2]||'all';
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--autoplay-policy=no-user-gesture-required','--no-sandbox']});
+const b=await chromeLaunch(['--autoplay-policy=no-user-gesture-required','--no-sandbox']);
 const p=await b.newPage({viewport:{width:1080,height:1000}});const errs=[];
 p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error'||m.type()==='warning')errs.push(m.text());});
 const barStarts=bl=>{const T=[];let t=0.01;for(const r of bl){T.push(t);t+=16*60/r[1]/4;}T.push(t);return T;};
@@ -28,7 +35,7 @@ function analyse(name,o){
   return res;
 }
 if(which==='offline'||which==='all'){
-  await p.goto('file:///workspace/techno/live/index.html');
+  await p.goto(fileUrl(HTML));
   const runs=[
     ['120帯 オープニング→おまかせ→ストップ(40小節目)',{bars:90,seed:11,auto:true,full:true,band:'b120',opening:true,closeAt:40}],
     ['140帯 オープニング→ミックス中にストップ(「一気にハードに」34→ストップ40)',{bars:100,seed:12,auto:true,full:true,band:'b140',opening:true,intents:[{bar:34,text:'一気にハードに'}],closeAt:40}],
@@ -40,7 +47,7 @@ if(which==='offline'||which==='all'){
     console.log('=== '+name+` (${((Date.now()-t0)/1000).toFixed(0)}s)`);console.log(JSON.stringify(analyse(name,out),null,1));}
 }
 if(which==='live'||which==='all'){
-  await p.goto('file:///workspace/techno/live/index.html');await p.waitForTimeout(300);
+  await p.goto(fileUrl(HTML));await p.waitForTimeout(300);
   const st=async l=>{const s=await p.evaluate(()=>({playing,bar:eng?eng.bar:null,band:eng?eng.cond.band:null,opening:eng?!!eng.cond.opening:null,
     drop:eng&&eng.drop.active?eng.drop.type:null,closing:eng&&eng.cond.closing?{E:eng.cond.closing.E}:null,closed:eng?eng.closed:null,minLead:eng?+eng.minLead.toFixed(4):null,
     btn:document.getElementById('play').textContent,btnClosing:document.getElementById('play').classList.contains('closing'),

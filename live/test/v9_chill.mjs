@@ -3,10 +3,17 @@
 // the episode boundaries vs ordinary bars), exact downbeat returns, no doubled kick/bass.
 // usage: node v9_chill.mjs [long|demand|all]
 import { chromium } from 'playwright-core';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
 const which=process.argv[2]||'all';
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
+const b=await chromeLaunch(['--no-sandbox']);
 const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
-await p.goto('file:///workspace/techno/live/index.html');
+await p.goto(fileUrl(HTML));
 const mean=a=>a.length?+(a.reduce((x,y)=>x+y,0)/a.length).toFixed(3):null;
 const barStarts=bl=>{const T=[];let t=0.01;for(const r of bl){T.push(t);t+=16*60/r[1]/4;}return T;};
 function sections(o){const BL=o.bpmLog,secs=[];let cur=null;

@@ -5,10 +5,17 @@
 //  cross-seed: Jaccard similarity of transposition-invariant motif bars / rhythm templates / bass bar patterns between different seeds
 // usage: node v13_melody.mjs [label] [html file (default ../index.html)] [bars=256] [seeds=3]
 import { chromium } from 'playwright-core';
-const label=process.argv[2]||'',html=process.argv[3]||'/workspace/techno/live/index.html',BARS=+(process.argv[4]||256),NSEED=+(process.argv[5]||3);
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
+const label=process.argv[2]||'',html=process.argv[3]||HTML,BARS=+(process.argv[4]||256),NSEED=+(process.argv[5]||3);
+const b=await chromeLaunch(['--no-sandbox']);
 const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
-await p.goto('file://'+html);
+await p.goto(fileUrl(html));
 async function sim(band,seed){return await p.evaluate(([band,seed,BARS])=>{
   S.band=band;S.style=BANDS[band].first;if(window.__v13randomKey)window.__v13randomKey(seed);
   const oc=new OfflineAudioContext(2,44100,44100),e=new Engine(oc,seed);e.cond.auto=true;const rec=[];

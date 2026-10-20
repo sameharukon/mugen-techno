@@ -3,7 +3,15 @@
 // rumble tail energy between kicks) and the size of the biggest kick-to-kick step during the transition,
 // v8 (index.html) vs v7 (index.v7.bak.html).
 import { chromium } from 'playwright-core';
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
+const b=await chromeLaunch(['--no-sandbox']);
 async function harness(cfg){
   const sr=44100,saved=JSON.stringify(S);
   if(cfg.band)S.band=cfg.band;S.style=cfg.style;
@@ -50,12 +58,12 @@ async function harness(cfg){
   }finally{Object.assign(S,JSON.parse(saved));}
 }
 const runs=[
-  ['/workspace/techno/live/index.v7.bak.html',{name:'v7 minimal→hard(142)',style:'minimal',say:'もっとハードに',seed:21,bars:44}],
-  ['/workspace/techno/live/index.html',{name:'v8 120帯 minimal→インダストリアル',band:'b120',style:'minimal',say:'もっとハードに',seed:21,bars:44}],
-  ['/workspace/techno/live/index.v7.bak.html',{name:'v7 groove→hard',style:'groove',say:'もっとハードに',seed:22,bars:44}],
-  ['/workspace/techno/live/index.html',{name:'v8 140帯 groove→ハードテクノ',band:'b140',style:'groove',say:'もっとハードに',seed:22,bars:44}],
-  ['/workspace/techno/live/index.html',{name:'v8 140帯 tribal→ハードテクノ',band:'b140',style:'tribal',say:'もっとハードに',seed:23,bars:44}],
+  [join(HERE, '..', 'index.v7.bak.html'),{name:'v7 minimal→hard(142)',style:'minimal',say:'もっとハードに',seed:21,bars:44}],
+  [HTML,{name:'v8 120帯 minimal→インダストリアル',band:'b120',style:'minimal',say:'もっとハードに',seed:21,bars:44}],
+  [join(HERE, '..', 'index.v7.bak.html'),{name:'v7 groove→hard',style:'groove',say:'もっとハードに',seed:22,bars:44}],
+  [HTML,{name:'v8 140帯 groove→ハードテクノ',band:'b140',style:'groove',say:'もっとハードに',seed:22,bars:44}],
+  [HTML,{name:'v8 140帯 tribal→ハードテクノ',band:'b140',style:'tribal',say:'もっとハードに',seed:23,bars:44}],
 ];
-for(const [f,cfg] of runs){const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));await p.goto('file://'+f);
+for(const [f,cfg] of runs){if(!existsSync(f)){console.log('skip '+cfg.name+': '+f+' is missing');continue;}const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));await p.goto(fileUrl(f));
   const r=await p.evaluate(`(${harness.toString()})(${JSON.stringify(cfg)})`);console.log(JSON.stringify(r));if(errs.length)console.log('errors',errs);await p.close();}
 await b.close();

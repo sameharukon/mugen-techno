@@ -2,12 +2,19 @@
 // gaps, never in opening / closing, in-key share of every chip note (deck key + mode). (B) offline renders with the layer forced on: peak / NaN.
 // usage: node v15_chip.mjs [seeds=6] [bars=480]
 import { chromium } from 'playwright-core';
-const NS=+(process.argv[2]||6),BARS=+(process.argv[3]||480),html='/workspace/techno/live/index.html';
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
+const NS=+(process.argv[2]||6),BARS=+(process.argv[3]||480),html=HTML;
+const b=await chromeLaunch(['--no-sandbox']);
 const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
 const out={};
 for(const band of ['b120','b140','bchill']){const A={segs:[],lens:[],phrases:0,inOpening:0,inClosing:0,notes:0,inKey:0,gapsPhrases:[],modes:{}};
-  for(let i=0;i<NS;i++){await p.goto('file://'+html);
+  for(let i=0;i<NS;i++){await p.goto(fileUrl(html));
     const r=await p.evaluate(([band,i,BARS])=>{S.band=band;S.style=BANDS[band].first;const e=new Engine(new OfflineAudioContext(2,4410,44100),7000+i*41,{opening:true});e.cond.auto=true;e.debug=true;
       for(const k of ['synth','stab','hardStab','acid','fmHit','organ','vox','marimba','flute','pulse','bleep','drone'])e[k]=()=>{};
       const log=[];e.chipNote=(t,m)=>log.push([e.bar,m,e.chip.deck.key,e.chip.deck.mode]);e.chipArp=(t,ms)=>{for(const m of ms)log.push([e.bar,m,e.chip.deck.key,e.chip.deck.mode]);};e.chipNoise=()=>{};
@@ -25,7 +32,7 @@ for(const band of ['b120','b140','bchill']){const A={segs:[],lens:[],phrases:0,i
   console.log('===',band,JSON.stringify(out[band]));}
 // (B) renders with the layer forced on (bars 8-24 of 32)
 const R={};
-for(const band of ['b120','b140','bchill']){await p.goto('file://'+html);
+for(const band of ['b120','b140','bchill']){await p.goto(fileUrl(html));
   R[band]=await p.evaluate(async band=>{let E;const r=await window.__renderOffline({band,bars:32,seed:4242,auto:true,setup:e=>{E=e;e.chipForceBar=8;e.chipForceLen=16;}});
     return {peakDb:r.peakDb,nan:r.nan,segs:E.chipSegs,chipNotes:E.chipLog.length};},band);
   console.log('render',band,JSON.stringify(R[band]));}

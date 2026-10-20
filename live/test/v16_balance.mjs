@@ -4,12 +4,19 @@
 // + segments: runs of broken-style bars and chill episodes (lengths, gaps), share of bars whose low deck style is "broken"
 // usage: node v16_balance.mjs [label] [html] [seeds=6] [bars=448]
 import { chromium } from 'playwright-core';
-const label=process.argv[2]||'',html=process.argv[3]||'/workspace/techno/live/index.html',NS=+(process.argv[4]||6),BARS=+(process.argv[5]||448);
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
+const label=process.argv[2]||'',html=process.argv[3]||HTML,NS=+(process.argv[4]||6),BARS=+(process.argv[5]||448);
+const b=await chromeLaunch(['--no-sandbox']);
 const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
 const out={};
 for(const band of ['b120','b140','bchill']){const tot={four:0,broken:0,none:0,other:0,chill:0,brk:0,halftime:0,n:0,styleBroken:0},brokenRuns=[],chillRuns=[],chillGaps=[],brkTypes={};
-  for(let i=0;i<NS;i++){await p.goto('file://'+html);
+  for(let i=0;i<NS;i++){await p.goto(fileUrl(html));
     const r=await p.evaluate(([band,i,BARS])=>{S.band=band;S.style=BANDS[band].first;const e=new Engine(new OfflineAudioContext(2,4410,44100),3100+i*57,{opening:true});e.cond.auto=true;
       for(const k of ['synth','stab','hardStab','acid','fmHit','organ','vox','marimba','flute','pulse','bleep','drone','bass','hat','clap','snare','perc','crash','chipNote','chipArp','chipNoise','noiseWash','revCym'])if(typeof e[k]==='function')e[k]=()=>{};
       let ks=new Set();e.kick=()=>{ks.add(e.step%16);};

@@ -7,12 +7,19 @@
 //     400-800 / 800-1600 Hz, pad-minus-epiano margin in the 200-800 Hz low mids, peak / NaN.
 // usage: node v22_jazzmesh.mjs [label] [html] [seeds=4] [bars=384]
 import { chromium } from 'playwright-core';
-const label=process.argv[2]||'',html=process.argv[3]||'/workspace/techno/live/index.html',NS=+(process.argv[4]||4),BARS=+(process.argv[5]||384);
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
+const label=process.argv[2]||'',html=process.argv[3]||HTML,NS=+(process.argv[4]||4),BARS=+(process.argv[5]||384);
+const b=await chromeLaunch(['--no-sandbox']);
 const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
 const res={sims:{},renders:{}};
 for(const band of ['b120','b140','bchill']){const A={jb:0,ob:0,jcol:0,ocol:0,segs:0,lens:[],ov:{mix:0,brk:0,chill:0,preMix2:0,swap2:0,key2:0},pairs:{}};
-  for(let i=0;i<NS;i++){await p.goto('file://'+html);
+  for(let i=0;i<NS;i++){await p.goto(fileUrl(html));
     const r=await p.evaluate(([band,i,BARS])=>{for(const k in JAZZ_P)JAZZ_P[k]=1;S.band=band;S.style=BANDS[band].first;
       const e=new Engine(new OfflineAudioContext(2,4410,44100),3100+i*53,{opening:true});e.cond.auto=true;
       const ev=[];const R=(t,src)=>ev.push([t,src]);
@@ -45,7 +52,7 @@ for(const band of ['b120','b140','bchill']){const A={jb:0,ob:0,jcol:0,ocol:0,seg
   console.log('==',band,JSON.stringify(res.sims[band]));}
 // (B) spectra
 for(const band of ['b120','bchill']){const X={};
-  for(const v of ['full','noEP','noPad']){await p.goto('file://'+html);
+  for(const v of ['full','noEP','noPad']){await p.goto(fileUrl(html));
     X[v]=await p.evaluate(async ([band,v])=>{const r=await window.__renderOffline({band,bars:28,seed:777,auto:true,keep:true,setup:e=>{e.jazzForceBar=8;e.jazzForceLen=16;
         if(v==='noEP')e.jzEP=()=>{};if(v==='noPad'){const od=e.drone.bind(e);e.drone=(t,dur,o,dest)=>od(t,dur,dest===e.padBus?{...o,lvl:0}:o,dest);}   /* silent pad voices, same random stream */}});
       const {buf,bpmLog}=window.__lastBuf,sr=44100,bpm=(bpmLog[12]||[0,124])[1],spb=240/bpm,L=buf.getChannelData(0),R=buf.getChannelData(1);

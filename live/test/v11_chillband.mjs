@@ -5,10 +5,17 @@
 //  band  : band changes to / from チル帯 (120 / 140 ↔ チル帯, style-name intents) — tempo moves only inside the beatless bridge
 // usage: node v11_chillband.mjs [set|level|band|all]
 import { chromium } from 'playwright-core';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
 const which=process.argv[2]||'all';
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
+const b=await chromeLaunch(['--no-sandbox']);
 const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
-await p.goto('file:///workspace/techno/live/index.html');
+await p.goto(fileUrl(HTML));
 const barStarts=bl=>{const T=[];let t=0.01;for(const r of bl){T.push(t);t+=16*60/r[1]/4;}T.push(t);return T;};
 function analyseSet(name,o){
   const BL=o.bpmLog,B=BL.map(r=>r[1]),bars=B.length;

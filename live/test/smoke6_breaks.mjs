@@ -1,11 +1,18 @@
 // Live (real-time) smoke test of the break library: every type via quick buttons / 詳細 picker / free text,
 // some during a DJ mix; checks console errors, scheduler headroom, returns landing on bar downbeats.
 import { chromium } from 'playwright-core';
-const b = await chromium.launch({ executablePath:'/usr/bin/google-chrome', args:['--autoplay-policy=no-user-gesture-required','--no-sandbox'] });
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
+const b = await chromeLaunch(['--autoplay-policy=no-user-gesture-required','--no-sandbox']);
 const p = await b.newPage({viewport:{width:1080,height:1300}}); const errs=[];
 p.on('console', m => { if (m.type()==='error'||m.type()==='warning') errs.push(m.type()+': '+m.text()); });
 p.on('pageerror', e => errs.push('pageerror: '+e.message));
-await p.goto('file:///workspace/techno/live/index.html?noopening'); await p.waitForTimeout(300);
+await p.goto(fileUrl(HTML, '?noopening')); await p.waitForTimeout(300);
 console.log('quick buttons:', (await p.locator('#breaks button').allTextContents()).join(','));
 await p.click('[data-brk="tapestop"]'); console.log('pre-start chip ->', await p.textContent('#interp'));
 await p.click('#play'); await p.waitForTimeout(600);
@@ -18,7 +25,7 @@ const waitDone=async (n,ms)=>{const t0=Date.now();while(Date.now()-t0<ms){const 
 // batch 1: quick buttons (they queue back-to-back without overlapping)
 for (const k of ['stutter','silence','echo','kick','filter']) await chip(k);
 await st('batch1 planned'); console.log('timeline:', (await p.locator('#timeline li').allTextContents()).join(' | '));
-await p.waitForTimeout(5000); await p.screenshot({path:'/workspace/techno/live/test/screenshot_break.png'}); await st('during');
+await p.waitForTimeout(5000); await p.screenshot({path:join(HERE, 'screenshot_break.png')}); await st('during');
 await waitDone(6,120000); await st('batch1 done');
 // batch 2: free text names
 for (const t of ['ハーフタイムにして','ハイパスビルドで溜めて','ベースだけにして','パーカッションだけ','短いブレイク']) await say(t);
@@ -37,5 +44,5 @@ const res=await p.evaluate(()=>{const bt=__bars;const off=eng.returnTimes.map(r=
     returns:eng.returnTimes.length,maxReturnOffFromDownbeatUs:+(Math.max(...off)*1e6).toFixed(3),minLead:+eng.minLead.toFixed(4),
     consecutiveSameAuto:eng.breakLog.slice(1).filter((x,i)=>x.type===eng.breakLog[i].type).length,log:eng.cond.log.map(x=>x.bar+':'+(x.status==='cancel'?'取消 ':'')+x.text+' ← '+x.src)};});
 console.log('RESULT', JSON.stringify(res));
-await p.screenshot({path:'/workspace/techno/live/test/screenshot.png', fullPage:true});
+await p.screenshot({path:join(HERE, 'screenshot.png'), fullPage:true});
 console.log('errors/warnings:', errs); await b.close();

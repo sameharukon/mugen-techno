@@ -3,10 +3,17 @@
 // Each string goes through the UI translator (enTx); prints any output that still contains Japanese.
 // usage: node v24_i18n_cov.mjs [seeds=3] [bars=320]
 import { chromium } from 'playwright-core';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
 const seeds=+(process.argv[2]||3),bars=+(process.argv[3]||320);
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--autoplay-policy=no-user-gesture-required','--no-sandbox']});
+const b=await chromeLaunch(['--autoplay-policy=no-user-gesture-required','--no-sandbox']);
 const p=await b.newPage({locale:'en-US'});const errs=[];p.on('pageerror',e=>errs.push(e.message));
-await p.goto('file:///workspace/techno/live/index.html?noopening');await p.waitForTimeout(300);
+await p.goto(fileUrl(HTML, '?noopening'));await p.waitForTimeout(300);
 const res=await p.evaluate(async({seeds,bars})=>{
   const T=new Set(),add=x=>{if(x!=null&&x!=="")T.add(String(x));};
   const tables=[PART_JA,PARAM_JA,PHASE_JA,CHILL_MODE_JA,MODE_JA,KD_REM_JA,KD_FILL_JA,KD_RISER_JA,KD_IMP_JA,HAT_FAM_JA,HAT_PAT_JA,CLAP_JA,PERC_JA,ORGAN_ART_JA,SECTION_JA];

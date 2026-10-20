@@ -1,10 +1,17 @@
 // v17: the 160 band is gone. UI shows no 160 references, no console errors; band intents never reach 160;
 // 「もっと速く」 = one band step up (チル帯→120帯→140帯), inside 140帯 a tempo nudge capped at 148 BPM.
 import { chromium } from 'playwright-core';
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--autoplay-policy=no-user-gesture-required','--no-sandbox']});
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
+const b=await chromeLaunch(['--autoplay-policy=no-user-gesture-required','--no-sandbox']);
 const p=await b.newPage({viewport:{width:1080,height:1000}});const errs=[];
 p.on('console',m=>{if(m.type()==='error'||m.type()==='warning')errs.push(m.type()+': '+m.text());});p.on('pageerror',e=>errs.push('pageerror: '+e.message));
-await p.goto('file:///workspace/techno/live/index.html?noopening');await p.waitForTimeout(400);
+await p.goto(fileUrl(HTML, '?noopening'));await p.waitForTimeout(400);
 const ui=await p.evaluate(()=>({text:document.body.innerText,bands:[...document.querySelectorAll('[data-band]')].map(x=>x.textContent),
   intents:[...document.querySelectorAll('#intents [data-intent]')].map(x=>x.textContent),bandKeys:Object.keys(BANDS),styleBands:Object.keys(STYLE_BAND)}));
 const bad=/160|シュランツ|クロスブリード|ハードコア|ガバ/;

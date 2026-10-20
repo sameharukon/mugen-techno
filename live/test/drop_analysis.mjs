@@ -1,6 +1,13 @@
 import { chromium } from 'playwright-core';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
 const files = process.argv.slice(2);
-const b = await chromium.launch({ executablePath:'/usr/bin/google-chrome', args:['--no-sandbox'] });
+const b = await chromeLaunch(['--no-sandbox']);
 async function harness(cfg){
   const sr=44100, bars=cfg.bars, secs=bars*16*60/(cfg.bpm-3)/4+1.5;
   const saved=JSON.stringify(S); Object.assign(S,{band:cfg.band||'b120',style:cfg.style,crash:cfg.crash,riser:true,fill:true,dropManual:false});
@@ -43,7 +50,7 @@ async function harness(cfg){
 }
 for (const f of files){
   const p=await b.newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
-  await p.goto('file://'+f);
+  await p.goto(fileUrl(f));
   console.log('=== '+f);
   const cfgs=[{style:'minimal',bpm:124,seed:42,auto:true,bars:34,crash:false},{style:'hard',band:'b140',bpm:144,seed:42,auto:true,bars:34,crash:false},{style:'hard',band:'b120',bpm:129,seed:42,auto:true,bars:34,crash:false},
     {style:'groove',band:'b140',bpm:137,seed:8,auto:true,recipes:true,bars:50,crash:true},{style:'minimal',bpm:124,seed:9,auto:true,recipes:true,bars:50,crash:true},

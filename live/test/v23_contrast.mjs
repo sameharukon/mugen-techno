@@ -9,14 +9,21 @@
 //  variety: distinct main-hat and perc bar patterns per set, previous-bar exact repeat rate
 // usage: node v23_contrast.mjs [label] [html] [seeds=5] [bars=448]
 import { chromium } from 'playwright-core';
-const label=process.argv[2]||'',html=process.argv[3]||'/workspace/techno/live/index.html',NS=+(process.argv[4]||5),BARS=+(process.argv[5]||448);
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
+const label=process.argv[2]||'',html=process.argv[3]||HTML,NS=+(process.argv[4]||5),BARS=+(process.argv[5]||448);
+const b=await chromeLaunch(['--no-sandbox']);
 const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
 const q=(a,x)=>{const s=a.slice().sort((p,q)=>p-q);return s.length?s[Math.floor(x*(s.length-1))]:null;},mean=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
 const cv=a=>{const m=mean(a);return m?Math.sqrt(mean(a.map(x=>(x-m)**2)))/m:0;},r3=x=>+x.toFixed(3);
 const res={};
 for(const band of ['b120','b140','bchill']){const ALL={orn:[],dens:[],strip:0,nb:0,cv:[],cvW:[],ratioW:[],chg:[],mid:[],hatD:[],hatEx:[],percD:[],percEx:[],parts:{}};
-  for(let i=0;i<NS;i++){await p.goto('file://'+html);
+  for(let i=0;i<NS;i++){await p.goto(fileUrl(html));
     const r=await p.evaluate(([band,i,BARS])=>{S.band=band;S.style=BANDS[band].first;const e=new Engine(new OfflineAudioContext(2,4410,44100),7100+i*61,{opening:true});e.cond.auto=true;
       const B={};const bar=()=>B[e.bar]||(B[e.bar]={ghost:0,roll:0,fill:0,flam:0,pre:0,extra:0,tail:0,brk:0,perc:0,pk:new Set(),hat:0,hatMain:new Set(),percSteps:new Set(),clap:0,lead:0,stab:0,chip:0,jazz:0,pad:0,drop:false});
       let D=null,U=0;

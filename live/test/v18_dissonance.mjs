@@ -12,11 +12,18 @@
 // clutter: melodic upper layers (up / stab / l2 / chip, per deck) sounding at once (mean, share of slices ≥3), upper-register (midi ≥ 60) note-ons per bar.
 // usage: node v18_dissonance.mjs [label] [html] [bars=384] [seeds=4]
 import { chromium } from 'playwright-core';
-const label=process.argv[2]||'',html=process.argv[3]||'/workspace/techno/live/index.html',BARS=+(process.argv[4]||384),NS=+(process.argv[5]||4);
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
+const label=process.argv[2]||'',html=process.argv[3]||HTML,BARS=+(process.argv[4]||384),NS=+(process.argv[5]||4);
+const b=await chromeLaunch(['--no-sandbox']);
 const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
 const JF=!!process.env.JAZZFORCE;   // v22: JAZZFORCE=1 -> every eligible phrase line starts a jazzy segment (many segments to judge)
-async function sim(band,seed){await p.goto('file://'+html);return await p.evaluate(([band,seed,BARS,JF])=>{
+async function sim(band,seed){await p.goto(fileUrl(html));return await p.evaluate(([band,seed,BARS,JF])=>{
   if(JF&&typeof JAZZ_P!=='undefined')for(const k in JAZZ_P)JAZZ_P[k]=1;
   S.band=band;S.style=BANDS[band].first;
   const oc=new OfflineAudioContext(2,44100,44100),e=new Engine(oc,seed);e.cond.auto=true;

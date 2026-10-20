@@ -2,8 +2,15 @@
 // HPF + riser probe continuity, and exact downbeat recovery (kick lands on the computed return time,
 // audio onset after tape stop / silence is not delayed).
 import { chromium } from 'playwright-core';
-const file = process.argv[2] || '/workspace/techno/live/index.html';
-const b = await chromium.launch({ executablePath:'/usr/bin/google-chrome', args:['--no-sandbox'] });
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
+const file = process.argv[2] || HTML;
+const b = await chromeLaunch(['--no-sandbox']);
 async function harness(cfg){
   const sr=44100,saved=JSON.stringify(S);
   Object.assign(S,{band:cfg.band||'b120',style:cfg.style,crash:cfg.crash??true,riser:true,fill:true,dropManual:false,autoDrop:false});
@@ -41,7 +48,7 @@ async function harness(cfg){
   }finally{Object.assign(S,JSON.parse(saved));}
 }
 const p=await b.newPage();const errs=[];p.on('pageerror',x=>errs.push(x.message));p.on('console',x=>{if(x.type()==='error')errs.push(x.text());});
-await p.goto('file://'+file);
+await p.goto(fileUrl(file));
 const types=await p.evaluate('BREAK_ORDER');
 const cfgs=types.map((type,i)=>({type,style:'minimal',seed:11+i,len:{kick:2,breakdown:8,filter:4,hpbuild:4,bassonly:2,perconly:2,tapestop:1,stutter:1,echo:1,halftime:4,silence:1}[type]}));
 cfgs.push({type:'tapestop',style:'hard',seed:3,len:1},{type:'stutter',style:'groove',seed:4,len:1},{type:'halftime',style:'tribal',seed:5,len:8},

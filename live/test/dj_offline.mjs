@@ -1,7 +1,14 @@
 import { chromium } from 'playwright-core';
-const b = await chromium.launch({ executablePath:'/usr/bin/google-chrome', args:['--no-sandbox'] });
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
+const b = await chromeLaunch(['--no-sandbox']);
 const p = await b.newPage(); const errs=[]; p.on('pageerror',e=>errs.push(e.message)); p.on('console',m=>{if(m.type()==='error'||m.type()==='warning')errs.push(m.text());});
-await p.goto('file:///workspace/techno/live/index.html');
+await p.goto(fileUrl(HTML));
 const runs = process.argv[2]==='quick' ? [
   {name:'scripted', bars:40, seed:7, intents:[{bar:1,text:'一気にハードに'}]}
 ] : [

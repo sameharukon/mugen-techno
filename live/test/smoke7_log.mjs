@@ -1,11 +1,18 @@
 // 消化した予定 log: (1) scheduler-only run (no rendering) to check order / cap / cancels / sources,
 // (2) live UI run: no 詳細設定 panel, log fills in the DOM, screenshot.
 import { chromium } from 'playwright-core';
-const b = await chromium.launch({ executablePath:'/usr/bin/google-chrome', args:['--autoplay-policy=no-user-gesture-required','--no-sandbox'] });
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
+const b = await chromeLaunch(['--autoplay-policy=no-user-gesture-required','--no-sandbox']);
 const p = await b.newPage({viewport:{width:1080,height:1080}}); const errs=[];
 p.on('console', m => { if (m.type()==='error'||m.type()==='warning') errs.push(m.type()+': '+m.text()); });
 p.on('pageerror', e => errs.push('pageerror: '+e.message));
-await p.goto('file:///workspace/techno/live/index.html?noopening'); await p.waitForTimeout(300);
+await p.goto(fileUrl(HTML, '?noopening')); await p.waitForTimeout(300);
 console.log('panel gone:', await p.locator('details,#adv,#mutes,#brktype,#key,#cutoff,#seedinfo,#autodrop').count()===0, '| key', await p.evaluate(()=>S.key));
 // (1) fast scheduler-only run
 const r1=await p.evaluate(()=>{const oc=new OfflineAudioContext(2,44100,44100),e=new Engine(oc,123),C=e.cond;let t=0.01;const snaps=[];
@@ -29,5 +36,5 @@ await say('ブレイクダウンして'); await say('少しテンポ上げて');
 const dom=await p.evaluate(()=>({n:document.querySelectorAll('#log li').length,cancel:document.querySelectorAll('#log li.cx').length,count:document.getElementById('logcount').textContent,
   rows:[...document.querySelectorAll('#log li')].map(li=>li.innerText.replace(/\n/g,' ｜ ')),logH:document.getElementById('log').getBoundingClientRect().height,minLead:eng.minLead}));
 console.log(JSON.stringify(dom,null,1));
-await p.screenshot({path:'/workspace/techno/live/test/screenshot.png', fullPage:true});
+await p.screenshot({path:join(HERE, 'screenshot.png'), fullPage:true});
 console.log('errors/warnings:', errs); await b.close();

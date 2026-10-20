@@ -4,12 +4,19 @@
 // change share at phrase boundaries (4 bars before vs after) and at deck swaps, perc voices sounding at once (max / share >3), hits per bar.
 // usage: node v21_drums.mjs [label] [html] [seeds=5] [bars=384]
 import { chromium } from 'playwright-core';
-const label=process.argv[2]||'',html=process.argv[3]||'/workspace/techno/live/index.html',NS=+(process.argv[4]||5),BARS=+(process.argv[5]||384);
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
+const label=process.argv[2]||'',html=process.argv[3]||HTML,NS=+(process.argv[4]||5),BARS=+(process.argv[5]||384);
+const b=await chromeLaunch(['--no-sandbox']);
 const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
 const res={};
 for(const band of ['b120','b140','bchill']){const A=[];
-  for(let i=0;i<NS;i++){await p.goto('file://'+html);
+  for(let i=0;i<NS;i++){await p.goto(fileUrl(html));
     A.push(await p.evaluate(([band,i,BARS])=>{S.band=band;S.style=BANDS[band].first;const e=new Engine(new OfflineAudioContext(2,4410,44100),5000+i*101,{opening:true});e.cond.auto=true;
       for(const k of ['synth','stab','hardStab','acid','fmHit','organ','vox','marimba','flute','pulse','bleep','drone','jzEP','chipNote','chipArp','chipNoise','kick','bass','riserFx'])if(e[k])e[k]=()=>{};
       let inD=false,curS=0;const rec=[];const R=(part,sig,vel,t)=>{if(inD)rec.push([e.bar,curS,part,sig,vel]);};

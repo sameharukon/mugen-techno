@@ -3,20 +3,27 @@
 //     register (median / p5 / p95 MIDI + bass fundamental Hz) of bass / 上モノ / pad, kick-tail Hz
 // usage: node v14_keys.mjs [label] [html (default ../index.html)] [nSeeds=300] [simSeeds=8] [bars=384]
 import { chromium } from 'playwright-core';
-const label=process.argv[2]||'',html=process.argv[3]||'/workspace/techno/live/index.html',NS=+(process.argv[4]||300),SS=+(process.argv[5]||8),BARS=+(process.argv[6]||384);
-const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join } from 'node:path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const HTML = join(HERE, '..', 'index.html');
+const fileUrl = (p, q = '') => pathToFileURL(p).href + q;
+const chromeLaunch = (args) => chromium.launch({ ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}), args });
+
+const label=process.argv[2]||'',html=process.argv[3]||HTML,NS=+(process.argv[4]||300),SS=+(process.argv[5]||8),BARS=+(process.argv[6]||384);
+const b=await chromeLaunch(['--no-sandbox']);
 const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
-await p.goto('file://'+html);
+await p.goto(fileUrl(html));
 const out={};
 const NM=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 const q=(a,x)=>{const s=a.slice().sort((p,q)=>p-q);return s.length?s[Math.floor(x*(s.length-1))]:null;};
 const hz=m=>+(440*Math.pow(2,(m-69)/12)).toFixed(1);
 for(const band of ['b120','b140','bchill']){const keys={},modes={};
-  for(let c=0;c<NS;c+=25){await p.goto('file://'+html);const r=await p.evaluate(([band,c,n])=>{const res=[];S.band=band;
+  for(let c=0;c<NS;c+=25){await p.goto(fileUrl(html));const r=await p.evaluate(([band,c,n])=>{const res=[];S.band=band;
       for(let i=c;i<c+n;i++){S.style=BANDS[band].first;const oc=new OfflineAudioContext(2,4410,44100),e=new Engine(oc,5000+i*13);res.push([((S.key%12)+12)%12,e.low.mode||"(none)"]);}return res;},[band,c,Math.min(25,NS-c)]);
     for(const [k,m] of r){keys[NM[k]]=(keys[NM[k]]||0)+1;modes[m]=(modes[m]||0)+1;}}
   let swaps=0,chg=0;const sizes={},rec={bass:[],up:[],pad:[]},tails=[],modeSw={};
-  for(let i=0;i<SS;i++){await p.goto('file://'+html);const r=await p.evaluate(([band,i,BARS])=>{S.band=band;S.style=BANDS[band].first;const e=new Engine(new OfflineAudioContext(2,4410,44100),9000+i*31);e.cond.auto=true;
+  for(let i=0;i<SS;i++){await p.goto(fileUrl(html));const r=await p.evaluate(([band,i,BARS])=>{S.band=band;S.style=BANDS[band].first;const e=new Engine(new OfflineAudioContext(2,4410,44100),9000+i*31);e.cond.auto=true;
       const rec={bass:[],up:[],pad:[]},R=(part,m)=>rec[part].push(m);
       e.synth=(t,m)=>R('up',m);e.stab=(t,d,r)=>R('up',r!=null?r:57+keyOff());e.hardStab=(t,r)=>R('up',r-12);e.acid=(t,m)=>R('up',m);e.fmHit=(t,m)=>R('up',m);
       e.organ=(t,r)=>R('up',r);e.vox=(t,m)=>R('up',m);e.marimba=(t,m)=>R('up',m);e.flute=(t,m)=>R('up',m);e.pulse=(t,m)=>R('up',m);e.bleep=(t,m)=>R('up',m);
