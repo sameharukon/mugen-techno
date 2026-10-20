@@ -9,7 +9,7 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif}
 main{max-width:1040px;margin:0 auto;padding:22px}
-h1{font-size:18px;font-weight:600;margin:0 0 4px;letter-spacing:.04em}
+h1{font-size:18px;font-weight:600;margin:0 0 10px;letter-spacing:.04em}
 .sub{color:var(--dim);font-size:12px;margin-bottom:14px}
 .top{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 button{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:10px 16px;font:inherit;cursor:pointer;user-select:none}
@@ -71,6 +71,7 @@ input[type=range]{width:100%;accent-color:var(--acc)}
 <body>
 <main>
 <h1>Mugen Techno</h1>
+<canvas id="viz" width="1900" height="340"></canvas>
 <div class="top">
   <button id="play" class="play">▶ スタート</button>
   <div class="bandsel" title="セットのテンポ帯（途中で切り替えるとビートレスのブリッジでテンポを移行）"><button id="bandbchill" data-band="bchill">チル帯</button><button id="bandb120" data-band="b120" class="on">120帯</button><button id="bandb140" data-band="b140">140帯</button></div>
@@ -98,7 +99,6 @@ input[type=range]{width:100%;accent-color:var(--acc)}
     <ul id="timeline"><li><span>—</span><span>予定なし（ホールド中）</span></li></ul>
   </div>
 </div>
-<canvas id="viz" width="1900" height="340"></canvas>
 </main>
 <script>
 "use strict";
