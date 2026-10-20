@@ -15,7 +15,9 @@ import { chromium } from 'playwright-core';
 const label=process.argv[2]||'',html=process.argv[3]||'/workspace/techno/live/index.html',BARS=+(process.argv[4]||384),NS=+(process.argv[5]||4);
 const b=await chromium.launch({executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
 const p=await b.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
-async function sim(band,seed){await p.goto('file://'+html);return await p.evaluate(([band,seed,BARS])=>{
+const JF=!!process.env.JAZZFORCE;   // v22: JAZZFORCE=1 -> every eligible phrase line starts a jazzy segment (many segments to judge)
+async function sim(band,seed){await p.goto('file://'+html);return await p.evaluate(([band,seed,BARS,JF])=>{
+  if(JF&&typeof JAZZ_P!=='undefined')for(const k in JAZZ_P)JAZZ_P[k]=1;
   S.band=band;S.style=BANDS[band].first;
   const oc=new OfflineAudioContext(2,44100,44100),e=new Engine(oc,seed);e.cond.auto=true;
   const rec=[];let cur=null,ctx=null;const AEO=[0,2,3,5,7,8,10];
@@ -32,6 +34,7 @@ async function sim(band,seed){await p.goto('file://'+html);return await p.evalua
   e.vox=(t,midi,dest,len=0.13)=>R(t,len,[midi],upPart());e.marimba=(t,midi)=>R(t,0.25,[midi],upPart());
   e.flute=(t,midi,dur)=>R(t,dur||0.3,[midi],upPart());e.pulse=(t,midi)=>R(t,s16()*0.6,[midi],upPart());e.bleep=(t,midi)=>R(t,0.1,[midi],upPart());
   e.drone=(t,dur,o)=>R(t,dur,[o.midi],'pad');
+  e.padCutHook=tc=>{for(const n of rec)if(n[3]==='pad'&&n[0]<tc&&n[0]+n[1]>tc)n[1]=tc-n[0];};   // v22: pad voices faded at the jazzy entry
   e.jzEP=(t,ns,dur)=>{for(const x of ns)rec.push([t,dur+0.1,Math.round(x.m),'jazz',e.low.id,x.ext||0]);};
   if(e.chipNote){e.chipNote=(t,midi,dur)=>R(t,dur,[midi],'chip');e.chipArp=(t,ms,dur)=>R(t,dur,ms,'chip');e.chipNoise=()=>{};}
   e.bass=function(t,note,lm=1,lift=false){let m;if(e.bassMidi)m=e.bassMidi(note,lift);else{const r0=33+ko();m=r0+MINOR_PENT[note.deg]+12*note.oct;if(lift&&m<r0)m+=12;}R(t,s16()*0.85*lm,[m],'bass',e.low);};
@@ -60,13 +63,13 @@ async function sim(band,seed){await p.goto('file://'+html);return await p.evalua
     for(let a=0;a<keys.length;a++)for(let c=a+1;c<keys.length;c++){const A=layers[keys[a]],B=layers[keys[c]];let hit=false;
       let hitA=false;const EA=extp[keys[a]],EB=extp[keys[c]];
       for(const x of A){for(const y of B){const d=(x-y+12)%12;if(d===1||d===11){hit=true;if(!(EA&&EA.has(x))&&!(EB&&EB.has(y)))hitA=true;}}}if(hitA)m2a++;
-      if(hit){m2++;const pa=keys[a].split('@'),pb=keys[c].split('@');const nm=[pa[0],pb[0]].sort().join('-')+(pa[1]!==pb[1]?' (x)':'');pairs[nm]=(pairs[nm]||0)+1;}}
+      if(hit){m2++;const pa=keys[a].split('@'),pb=keys[c].split('@');const nm=[pa[0],pb[0]].sort().join('-')+(pa[1]!==pb[1]?' (x)':'');pairs[nm]=(pairs[nm]||0)+1;if(S0.jazz)pairs['J:'+nm+(hitA?'':' [ext]')]=(pairs['J:'+nm+(hitA?'':' [ext]')]||0)+1;}}
     const bassL=keys.filter(k=>k.startsWith('bass@'));
-    if(bassL.length){const bp=[...layers[bassL[0]]][0];for(const k of keys){if(k.startsWith('bass@'))continue;for(const x of layers[k])if((x-bp+12)%12===6){tri++;pairs['tritone-bass:'+k.split('@')[0]]=(pairs['tritone-bass:'+k.split('@')[0]]||0)+1;break;}}}
+    if(bassL.length){const bp=[...layers[bassL[0]]][0];for(const k of keys){if(k.startsWith('bass@'))continue;for(const x of layers[k])if((x-bp+12)%12===6){tri++;if(S0.jazz)pairs['J:tritone-bass:'+k.split('@')[0]]=(pairs['J:tritone-bass:'+k.split('@')[0]]||0)+1;pairs['tritone-bass:'+k.split('@')[0]]=(pairs['tritone-bass:'+k.split('@')[0]]||0)+1;break;}}}
     let okey=0,nct=0,ncta=0;
     if(S0.mix)for(const n of ons){if(n[3]==='bass')continue;const o=S0.decks.find(d=>d.id!==n[4]);if(o&&!o.sc.has(((n[2]%12)+12)%12))okey++;}
     if(S0.s%4===0)for(const n of ons)if((n[3]==='up'||n[3]==='chip')&&n[1]>1.2*sl&&!S0.chord.has(((n[2]%12)+12)%12)){nct++;ncta++;}
-    for(const n of ons)if(n[3]==='jazz'&&!S0.ch7.has(((n[2]%12)+12)%12)){nct++;if(!n[5])ncta++;}   // e-piano: chord = triad + 7th; extensions only allowed in the adjusted count
+    for(const n of ons)if(n[3]==='jazz'&&!S0.ch7.has(((n[2]%12)+12)%12)){nct++;if(!n[5]){ncta++;pairs['J:nct-nonext']=(pairs['J:nct-nonext']||0)+1;}}   // e-piano: chord = triad + 7th; extensions only allowed in the adjusted count
     const mel=keys.filter(k=>MEL.has(k.split('@')[0])).length;
     const upN=ons.filter(n=>MEL.has(n[3])&&n[2]>=60).length;
     for(const k of keys)if(MEL.has(k.split('@')[0]))barSet.add(k);
@@ -75,7 +78,7 @@ async function sim(band,seed){await p.goto('file://'+html);return await p.evalua
     if(S0.s===15)barSet=new Set();}
   const out={};for(const [k,C] of Object.entries(cats)){const bars=C.slices/16;out[k]={bars:+bars.toFixed(0),m2:+(C.m2/bars).toFixed(2),tri:+(C.tri/bars).toFixed(2),okey:+(C.okey/bars).toFixed(2),nct:+(C.nct/bars).toFixed(2),
     total:+((C.m2+C.tri+C.okey+C.nct)/bars).toFixed(2),m2a:+(C.m2a/bars).toFixed(2),ncta:+(C.ncta/bars).toFixed(2),totala:+((C.m2a+C.tri+C.okey+C.ncta)/bars).toFixed(2),melLayers:+(C.mel/C.slices).toFixed(2),ge3:+(C.ge3/C.slices).toFixed(3),upNotesPerBar:+(C.upN/bars).toFixed(1),barLayers:+(C.barLay/Math.max(1,C.bars)).toFixed(2),bars3plus:+(C.bar3/Math.max(1,C.bars)).toFixed(3)};}
-  return {band,seed,keyChanges:kc.length,cats:out,pairs};},[band,seed,BARS]);}
+  return {band,seed,keyChanges:kc.length,cats:out,pairs};},[band,seed,BARS,JF]);}
 const agg={};const pairAgg={};
 for(const band of ['b120','b140','bchill']){for(let i=0;i<NS;i++){const seed=1000+i*7919+(band==='b140'?3:band==='bchill'?5:0);const r=await sim(band,seed);
   for(const [k,v] of Object.entries(r.cats)){const A=(agg[band]||(agg[band]={}))[k]||(agg[band][k]={n:0});A.n+=v.bars;for(const f of ['m2','tri','okey','nct','total','m2a','ncta','totala','melLayers','ge3','upNotesPerBar','barLayers','bars3plus'])A[f]=(A[f]||0)+v[f]*v.bars;}
@@ -83,8 +86,10 @@ for(const band of ['b120','b140','bchill']){for(let i=0;i<NS;i++){const seed=100
   process.stderr.write(band+' done\n');}
 const res={};for(const [band,C] of Object.entries(agg)){res[band]={};for(const [k,A] of Object.entries(C)){const o={bars:A.n};for(const f of ['m2','tri','okey','nct','total','m2a','ncta','totala','melLayers','ge3','upNotesPerBar','barLayers','bars3plus'])o[f]=+(A[f]/A.n).toFixed(f==='ge3'||f==='bars3plus'?3:2);res[band][k]=o;}}
 const totBars=Object.values(agg).reduce((s,C)=>s+C.all.n,0);
-const topPairs=Object.entries(pairAgg).sort((a,b)=>b[1]-a[1]).slice(0,14).map(([k,v])=>[k,+(v/totBars).toFixed(3)]);
+const topPairs=Object.entries(pairAgg).filter(([k])=>!k.startsWith('J:')).sort((a,b)=>b[1]-a[1]).slice(0,14).map(([k,v])=>[k,+(v/totBars).toFixed(3)]);
+const jBars=Object.values(res).reduce((s,C)=>s+(C.jazzOn?C.jazzOn.bars:0),0);
+const jazzPairs=Object.entries(pairAgg).filter(([k])=>k.startsWith('J:')).sort((a,b)=>b[1]-a[1]).slice(0,14).map(([k,v])=>[k.slice(2),+(v/Math.max(1,jBars)).toFixed(3)]);
 console.log('LABEL',label,html);
 for(const [band,C] of Object.entries(res)){console.log('==',band);for(const k of ['all','normal','mix','keychg','chipOn','chipOff','mode:aeolian','mode:dorian','mode:phrygian','jazzOn','jazzOff'])if(C[k])console.log(' ',k.padEnd(14),JSON.stringify(C[k]));}
-console.log('top pairs per bar (all bands)',JSON.stringify(topPairs));
-console.log('RESULT',JSON.stringify({label,res,topPairs}));console.log('errors',errs);await b.close();
+console.log('top pairs per bar (all bands)',JSON.stringify(topPairs));console.log('jazzy pairs per jazzy bar',jBars,JSON.stringify(jazzPairs));
+console.log('RESULT',JSON.stringify({label,res,topPairs,jazzPairs}));console.log('errors',errs);await b.close();
