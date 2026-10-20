@@ -66,37 +66,69 @@ input[type=range]{width:100%;accent-color:var(--acc)}
 .arc span.on{color:var(--acc2);border-color:var(--acc2)}
 .arc span.ch.on{color:#9f7aea;border-color:#9f7aea}.arc span.oc.on{color:#63b3ed;border-color:#63b3ed}
 .setl i.oc{border-color:#2b6cb0;color:#90cdf4}.play.closing{background:#b7791f}.setl i.ch{border-color:#6b46c1;color:#b794f4}
+/* v24: fixed layout -- nothing below the grid changes size or position as texts change during playback */
+body{font-variant-numeric:tabular-nums}
+.ttl{display:flex;align-items:center;gap:12px;margin:0 0 10px}.ttl h1{margin:0}
+.lang{display:flex;margin-left:auto}.lang button{padding:3px 9px;font-size:11px;border-radius:0;color:var(--dim)}.lang button:first-child{border-radius:6px 0 0 6px}.lang button:last-child{border-radius:0 6px 6px 0}
+.lang button.on{color:var(--fg);border-color:var(--acc);background:#10302d}
+.one{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.two{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;min-width:0;word-break:break-word}
+.top{flex-wrap:nowrap}
+button.play{width:236px;min-width:236px;flex:0 0 236px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.bandsel{flex:0 0 auto}.bandsel button{width:78px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:10px 6px}
+.vol{flex:0 0 200px;width:200px}
+#status{flex:1 1 0;width:0}
+.cols{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}
+.card{min-width:0;overflow:hidden}
+.h{gap:10px;height:18px;line-height:18px;white-space:nowrap}.h>span:first-child{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis}#holdinfo,#logcount,#phrase{flex:0 0 170px;width:170px;text-align:right}
+.intents button{height:40px;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;word-break:break-word}
+.interpbox{height:46px;overflow:hidden;margin-top:8px}
+#interp{margin-top:0;min-height:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;line-height:20px;max-height:40px}
+#interp.bad{-webkit-line-clamp:1;max-height:20px}#suggest{flex-wrap:nowrap;overflow:hidden;margin-top:2px}
+.styles{height:26px;line-height:26px;min-width:0}
+.styles{gap:0}.styles>span{height:26px}#nowStyle{flex:0 0 calc(50% - 12px)}.styles .arrow{flex:0 0 24px;text-align:center}#nextStyle{flex:1 1 0}
+.keyrow{display:flex;gap:12px;height:18px;line-height:18px}#keyinfo{flex:1 1 0}#bpm{flex:0 0 120px;text-align:right}
+.setl{flex-wrap:nowrap;overflow:hidden;height:22px;white-space:nowrap}.setl>*{flex:0 0 auto}
+.arc{height:19px;overflow:hidden}.arc span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+#mixinfo{height:18px}#upinfo{height:36px}
+#timeline{height:132px;max-height:none;overflow-y:auto;overflow-x:hidden}
+#timeline li{height:22px;align-items:center;padding:0}#timeline li span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#timeline li span:first-child{flex:0 0 84px}#timeline li span:last-child{flex:1 1 0;min-width:0}
+#log{height:168px}#log li{grid-template-columns:96px 42px minmax(0,1fr)}#log .ld{min-width:0;word-break:break-word}
+.meters span{white-space:nowrap}
+@media (max-width:800px){.cols{grid-template-columns:minmax(0,1fr)}.top{flex-wrap:wrap}#status{flex:1 1 100%;width:auto}.intents{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .vol{flex:1 1 160px}}
 </style>
 </head>
 <body>
 <main>
-<h1>Mugen Techno</h1>
+<div class="ttl"><h1>Mugen Techno</h1><div class="lang" id="langsel" role="group" aria-label="Language"><button id="lang-ja" data-lang="ja">JA</button><button id="lang-en" data-lang="en">EN</button></div></div>
 <canvas id="viz" width="1900" height="340"></canvas>
 <div class="top">
-  <button id="play" class="play">▶ スタート</button>
-  <div class="bandsel" title="セットのテンポ帯（途中で切り替えるとビートレスのブリッジでテンポを移行）"><button id="bandbchill" data-band="bchill">チル帯</button><button id="bandb120" data-band="b120" class="on">120帯</button><button id="bandb140" data-band="b140">140帯</button></div>
-  <div class="vol">音量 <input id="vol" type="range" min="0" max="1" step="0.01" value="0.8"></div>
-  <span class="status" id="status">停止中</span>
+  <button id="play" class="play" data-i18n="▶ スタート|▶ Start">▶ スタート</button>
+  <div class="bandsel" id="bandsel" data-i18n-title="セットのテンポ帯（途中で切り替えるとビートレスのブリッジでテンポを移行）|Tempo band of the set (switching mid-set moves the tempo over a beatless bridge)"><button id="bandbchill" data-band="bchill">チル帯</button><button id="bandb120" data-band="b120" class="on">120帯</button><button id="bandb140" data-band="b140">140帯</button></div>
+  <div class="vol"><span data-i18n="音量|Volume">音量</span> <input id="vol" type="range" min="0" max="1" step="0.01" value="0.8"></div>
+  <span class="status one" id="status">停止中</span>
 </div>
 <div class="cols">
   <div class="card">
-    <div class="h"><span>意図を伝える</span><span id="holdinfo"></span></div>
+    <div class="h"><span data-i18n="意図を伝える|Tell the DJ">意図を伝える</span><span id="holdinfo" class="one"></span></div>
     <div class="intents" id="intents"></div>
-    <div class="chips brks" id="breaks"><span>ブレイク：</span></div>
-    <div id="interp"></div>
-    <div class="chips" id="suggest"></div>
-    <div id="logwrap"><div class="h"><span>消化した予定</span><span id="logcount"></span></div><ul id="log"><li class="empty">まだありません（スタートすると、終わった予定がここに残ります）</li></ul></div>
+    <div class="chips brks" id="breaks"><span data-i18n="ブレイク：|Breaks:">ブレイク：</span></div>
+    <div class="interpbox"><div id="interp"></div><div class="chips" id="suggest"></div></div>
+    <div id="logwrap"><div class="h"><span data-i18n="消化した予定|History">消化した予定</span><span id="logcount" class="one"></span></div><ul id="log"></ul></div>
   </div>
   <div class="card">
-    <div class="h"><span>いまの状態</span><span id="phrase">フレーズ — </span></div>
-    <div class="styles"><span id="nowStyle">ミニマル</span><span class="arrow" id="arrow"></span><span class="next" id="nextStyle"></span><span class="status" id="keyinfo" style="margin-left:auto">キー —</span><span class="status" id="bpm" style="margin-left:12px">124 BPM</span></div>
+    <div class="h"><span data-i18n="いまの状態|Now playing">いまの状態</span><span id="phrase" class="one">フレーズ — </span></div>
+    <div class="styles"><span id="nowStyle" class="one">ミニマル</span><span class="arrow" id="arrow"></span><span class="next one" id="nextStyle"></span></div>
+    <div class="keyrow"><span class="status one" id="keyinfo">キー —</span><span class="status one" id="bpm">124 BPM</span></div>
     <div class="setl" id="setlist"></div>
     <div class="arc" id="arc"></div>
-    <div class="prog"><div id="mixbar"></div></div><div class="status" id="mixinfo">ミックスなし</div>
-    <div class="status" id="upinfo"></div>
+    <div class="prog"><div id="mixbar"></div></div><div class="status one" id="mixinfo">ミックスなし</div>
+    <div class="status two" id="upinfo"></div>
     <div class="meters" id="meters"></div>
-    <div class="h" style="margin-top:10px"><span>これからの予定</span></div>
-    <ul id="timeline"><li><span>—</span><span>予定なし（ホールド中）</span></li></ul>
+    <div class="h" style="margin-top:10px"><span data-i18n="これからの予定|Coming up">これからの予定</span></div>
+    <ul id="timeline"></ul>
   </div>
 </div>
 </main>
@@ -2172,6 +2204,185 @@ function stop(){
   eng=null;vizQ.length=0;setPlayUI(false);$("play").classList.remove("closing");try{updatePanel();}catch(_){}
 }
 
+// ---------- i18n (v24): JA / EN. The engine keeps producing Japanese text; the UI translates it at display time ----------
+const LANG_KEY="mugentechno.lang";
+let LANG=(()=>{try{const s=localStorage.getItem(LANG_KEY);if(s==="ja"||s==="en")return s;}catch(_){}return /^ja/i.test(navigator.language||"")?"ja":"en";})();
+const Lx=(ja,en)=>LANG==="en"?en:ja;
+// fixed terms (longest match wins)
+const EN_TERMS={
+  // parts / params
+  "キック":"Kick","ハット":"Hats","クラップ":"Clap","パーカッション":"Percussion","ベース":"Bass","上モノ":"Synths",
+  "エネルギー":"Energy","暗さ":"Darkness","密度":"Density","グルーヴ":"Groove","緊張感":"Tension","空間":"Space",
+  // styles
+  "ミニマル":"Minimal","ハードテクノ":"Hard Techno","ハードグルーヴ":"Hard Groove","トライバル":"Tribal","ブレイクビート風":"Breakbeat",
+  "ブロークン（速め）":"Broken (fast)","ブロークン":"Broken","グルーヴィー":"Groovy","インダストリアル":"Industrial","ハイプノティック":"Hypnotic",
+  "ピークタイム・トライバル":"Peak-time Tribal","ディープ・ミニマル":"Deep Minimal","ダブテクノ":"Dub Techno","オーガニック・ローファイ":"Organic Lo-fi",
+  "ダウンテンポ（ハーフタイム）":"Downtempo (half-time)","アンビエント・テクノ":"Ambient Techno",
+  // bands / phases
+  "チル帯":"Chill band","120帯":"120 band","140帯":"140 band",
+  "ウォームアップ":"Warm-up","ビルド":"Build","ピーク":"Peak","リリース":"Release","チル":"Chill","オープニング":"Opening","クロージング":"Closing","スウェル":"Swell",
+  // chill modes / key modes
+  "丸いキックの4つ打ち":"soft four-on-the-floor","ハーフタイム":"half-time","ビートレス":"beatless",
+  "エオリアン":"Aeolian","ドリアン":"Dorian","フリジアン":"Phrygian","マイナーペンタ":"Minor pentatonic",
+  // breaks
+  "キック抜き":"Kick-out","フルブレイクダウン":"Full breakdown","フィルターブレイク":"Filter break","ハイパスビルド":"High-pass build","ベースだけ":"Bass only",
+  "パーカッションだけ":"Percussion only","テープストップ":"Tape stop","スタッター":"Stutter","エコーアウト":"Echo out","サイレンス":"Silence","アウトロ":"Outro",
+  "アンビエント・ブリッジ":"Ambient bridge","ブレイクダウン":"breakdown",
+  "キックだけ抜いてライザーで溜める":"Pull just the kick and build tension with a riser",
+  "ドラム・ベースが抜けて上モノ＋パッドだけ、最後の2小節でスネアロール＋ライザー":"Drums and bass drop out, leaving synths and pads; snare roll and riser over the last 2 bars",
+  "マスターLPFで隣の部屋のようにこもらせ、最後の1拍で開く":"Master low-pass muffles it like the next room, then opens on the last beat",
+  "HPFで全体を少しずつ細くし、最後の小節はキックとベースを抜いてドロップ":"High-pass thins the mix bit by bit; the last bar pulls kick and bass, then the drop",
+  "キック＋ベースだけを残す":"Leave only kick and bass","ハット・クラップ・パーカッションだけを残す":"Leave only hats, clap and percussion",
+  "後半2拍で全体がピッチダウンして止まり、次の1拍目で再始動":"Everything pitches down and stops over the last 2 beats, restarting on the next downbeat",
+  "後半2拍を8分→16分→32分で連打（ビートリピート）":"Beat repeat over the last 2 beats: 8ths → 16ths → 32nds",
+  "ドライを切ってダブ・ディレイの残響だけを残す":"Cut the dry signal and leave only the dub delay tail",
+  "キック1拍目・スネア3拍目の半分のノリ、ベースも半分の速さに":"Half-time feel: kick on 1, snare on 3, bass at half speed",
+  "最後の1拍だけほぼ無音にしてドロップ":"Near-silence on the last beat, then the drop",
+  "パッドとフィルターのかかったパーカッションから始め、16小節目でキックイン":"Starts with pads and filtered percussion; the kick comes in at bar 16",
+  "キックアウト＋エコー／リバーブの余韻、要素を順に抜いてフェードアウト":"Kick out with an echo/reverb tail; elements drop out one by one and fade",
+  "ビートレスのパッドだけにして、その間にテンポを切り替える":"Beatless pads only, with the tempo change happening underneath",
+  "今の雰囲気に合うブレイクを選ぶ":"Pick a break that fits the moment",
+  // kick-out recipes
+  "キックのみ":"kick only","キック＋ベース":"kick + bass","ローカット":"low cut","細いキック":"thin kick","1拍目だけ":"beat 1 only","裏打ちキック":"offbeat kick",
+  "ハードコア・キックロール":"hardcore kick roll","スネア16分":"16th snare roll","スネア加速":"accelerating snare","3連スネア":"triplet snare","キックロール8分":"8th kick roll",
+  "キックロール16分":"16th kick roll","タムフィル":"tom fill","リバースシンバル":"reverse cymbal","無音ギャップ":"silent gap","エコースロー":"echo throw","フィルなし":"no fill",
+  "ノイズライザー":"noise riser","ピッチライザー":"pitch riser","クラッシュ＋ブーム":"crash + boom","クラッシュ":"crash","サブブーム":"sub boom","インパクトなし":"no impact",
+  "半拍":"half beat","1拍":"1 beat","（フレーズ途中）":" (mid-phrase)","手動（K）":"manual (K)","手動":"manual","自動":"auto",
+  // drum kit
+  "タイトハット":"tight hats","タイト":"tight","オープン":"open","909メタル":"909 metal","オープンハット":"open hats","909メタルハット":"909 metal hats","シェイカーハット":"shaker hats","ライドハット":"ride",
+  "16分アクセント":"accented 16ths","ローリング16分":"rolling 16ths","8分":"8ths","裏打ち":"offbeat",
+  "タイトクラップ":"tight clap","ルームクラップ":"room clap","リム":"rim","クラップ＋スネア":"clap + snare",
+  "コンガ":"conga","ボンゴ":"bongo","タム":"tom","カウベル":"cowbell","ウッドブロック":"woodblock","メタルクリック":"metal click","FMブリップ":"FM blip",
+  "シェイカー":"shaker","ライド":"ride","ブラシ":"brushes","ウォーキングベース":"walking bass","エレピ":"Rhodes",
+  // synth patches
+  "ダブ・スタブ（こもり）":"Dub Stab (muffled)","ダブ・スタブ":"Dub Stab","ダブ・コード（m9）":"Dub Chord (m9)","ダブ・コード（チル）":"Dub Chord (chill)",
+  "サイン・ブリープ":"Sine Bleep","グラス・ベル（FM）":"Glass Bell (FM)","ヒプノ・シーケンス":"Hypno Sequence","ディストーション・スタブ＋アシッド":"Distorted Stab + Acid",
+  "アシッド・ライン":"Acid Line","サイレン・リード":"Siren Lead","フーバー":"Hoover","メタル・パーカッション（FM）":"Metal Perc (FM)","オルガン＋ボイス":"Organ + Vox",
+  "クラビ":"Clav","ブラス・スタブ":"Brass Stab","ハウス・ピアノ":"House Piano","ボイス・チョップ":"Vocal Chop","マリンバ＋フルート":"Marimba + Flute","カリンバ":"Kalimba",
+  "ログドラム":"Log Drum","チャント":"Chant","バンブー・フルート":"Bamboo Flute","パルス・アルペジオ":"Pulse Arp","エレクトロ・ザップ":"Electro Zap","スクエア・コード":"Square Chord",
+  "アシッド":"Acid","ブリープ":"Bleep","チル・キー（ローズ風）":"Chill Keys (Rhodes-style)","ソフト・ベル":"Soft Bell","ディープ・キー":"Deep Keys","パッド・スウェル":"Pad Swell",
+  "シマー":"Shimmer","ウッド・マレット":"Wood Mallet","ローファイ・キー":"Lo-fi Keys","ヴィブラフォン（FM）":"Vibraphone (FM)","スタブ":"stab","ロータリー":"rotary",
+  "お休み":"resting","まばら":"sparse","メイン":"main","強め":"intense",
+  "移調":"transpose","ずらし":"shift","音を足す":"add notes","音を抜く":"drop notes","オクターブ":"octave","アクセント移動":"accent shift","ゲート／フィルター":"gate / filter",
+  "音程を一歩":"step a note","フォーム変化":"form change","展開小節":"development bar",
+  "アルペジオ":"arp","リード":"lead","三角波":"triangle","パルス":"pulse ",
+  // intents (button labels and log sources)
+  "盛り上げて":"Lift it","もっとハードに":"Harder","落ち着かせて":"Cool it down","暗く":"Darker","明るく":"Brighter","グルーヴを出して":"More groove",
+  "トライバルに":"Go tribal","ミニマルに戻して":"Back to minimal","ブレイク入れて":"Drop a break","ピークを作って":"Build to a peak","ずっとこのまま":"Hold this",
+  "ブレイクビート風に":"Breakbeat feel","チル帯で":"Chill band","120帯で":"120 band","140帯で":"140 band","少しテンポを上げて":"Tempo up a bit",
+  "少しテンポを下げて":"Tempo down a bit","チルに":"Chill out","ちょっと休憩":"Short breather","ハーフタイムでチル":"Half-time chill","ビートレスで一息":"Beatless breather",
+  "少し暗く":"A bit darker","一気に盛り上げて":"Lift it now","短いブレイク":"Short break","おまかせ":"Autopilot","一気にハードに":"Harder, now","ストップ":"Stop",
+  // misc words
+  "雰囲気の変化":"Vibe change","セットリスト":"Set list","チル展開":"chill-out","フレーズ":"phrases","セット":" set","ボタン":"Button ","取消":"Cancelled",
+};
+const EN_INTENT=new Set(["盛り上げて","もっとハードに","落ち着かせて","暗く","明るく","グルーヴを出して","トライバルに","ミニマルに戻して","ブレイク入れて","ピークを作って","ずっとこのまま","ブレイクビート風に","チル帯で","120帯で","140帯で","少しテンポを上げて","少しテンポを下げて","チルに","ちょっと休憩","ハーフタイムでチル","ビートレスで一息","少し暗く","一気に盛り上げて","テープストップ","短いブレイク","トライバルに","おまかせ","一気にハードに"]);
+const STRIP_WHY={"ピーク後":"after the peak","ビルド前":"before the build","新デッキ":"new deck","間":"breathing room"};
+// sentence templates (Japanese word order → English); names captured here are translated by the term pass afterwards
+const EN_RX=[
+  [/^オープニング完了：キックイン（ウォームアップへ）$/,"Opening done: kick in (into the warm-up)"],
+  [/^キック抜き（(.+)）：復帰$/,"Kick-out ($1): back in"],
+  [/^(.+?) (\d+)小節：復帰$/,"$1 $2 bars: back in"],
+  [/（残り(\d+)）$/," ($1 left)"],
+  [/^キック抜き・手動（押下中）$/,"Kick-out · manual (held)"],[/^キック抜き・次の小節で復帰$/,"Kick-out · back on the next bar"],
+  [/^ストリップ (\d+)小節（キック・ベース・ハット(＋パーカッション1つ)?だけ・(.+)）$/,(m,n,p,w)=>`Stripped ${n} bars (kick, bass, hats${p?" + one perc":""} only · ${STRIP_WHY[w]||w})`],
+  [/^ブレイクビート風のキック：4つ打ちに戻る$/,"Breakbeat kick: back to four-on-the-floor"],
+  [/^ブレイクビート風のキック (\d+)小節（フレーバー）$/,"Breakbeat kick $1 bars (flavour)"],
+  [/^ジャジー (\d+)小節（エレピ (m\d+)(.*)）$/,"Jazzy $1 bars (Rhodes $2$3)"],
+  [/^チップチューン・スパイス (\d+)小節（(.+)）$/,"Chiptune spice $1 bars ($2)"],
+  [/^ミックス開始：(.+?)のハット／パーカッションを徐々に投入（上モノは交換から）$/,"Mix start: easing in the $1 hats / percussion (synths from the swap)"],
+  [/^(.+?)の上モノをハイパスで抜いていく（交換までに）$/,"High-passing out the $1 synths (before the swap)"],
+  [/^キックの質感を(.+?)へ(\d+)小節かけてモーフ（ランブル層を先に足す）$/,"Morphing the kick into $1 over $2 bars (rumble layer first)"],
+  [/^キックの質感を(.+?)へ(\d+)小節かけてモーフ（なめらかに）$/,"Morphing the kick into $1 over $2 bars (smoothly)"],
+  [/^(.+?)→ 交換$/,"$1 → swap"],
+  [/^キック＋ベースを(.+?)に交換$/,"Kick + bass swapped to $1"],
+  [/^(.+?)が完全に抜けてミックス完了$/,"$1 fully out: mix complete"],
+  [/^チル展開は既に予定されています$/,"A chill-out is already planned"],[/^既にチル展開中です$/,"Already in a chill-out"],[/^既にクロージング中です$/,"Already closing"],
+  [/^既に(.+?)セットへ移行予定です$/,"Already heading to the $1 set"],[/^既に(.+?)セットです$/,"Already in the $1 set"],
+  [/^既に(.+?)へ移行中です$/,"Already moving to $1"],[/^既に(.+?)です$/,"Already on $1"],
+  [/^現在の移行が終わったらチル展開へ$/,"Chill-out after the current transition"],
+  [/^現在の移行が終わったら(.+?)セット（(.+)）へ$/,"To the $1 set ($2) after the current transition"],
+  [/^現在の移行が終わったら(.+?)セットへ$/,"To the $1 set after the current transition"],
+  [/^現在の移行が終わったら(.+?)へ$/,"To $1 after the current transition"],
+  [/^(\d+)小節後から(\d+)小節かけて(.+?)へミックス（テンポは(.+?)のまま）$/,"Mixing into $3 over $2 bars, starting in $1 bars (tempo stays in the $4)"],
+  [/（チル展開のため）/," (for the chill-out)"],[/（セット移行のため）/," (for the set change)"],[/（クロージングのため）/," (for the closing)"],
+  [/^チル展開へ：8小節かけてエネルギー・密度を下げ、キックを丸く（(.+)）$/,"Into the chill-out: energy and density down over 8 bars, softer kick ($1)"],
+  [/^エコーアウトでチルに入る$/,"Echo out into the chill"],
+  [/^チル：(.+?)・パッド＋ダブ・ディレイ（(\d+)小節）$/,"Chill: $1 · pads + dub delay ($2 bars)"],
+  [/^チル明けに向けて8小節かけてエネルギーとキックを戻す$/,"Bringing energy and kick back over 8 bars to leave the chill"],
+  [/^キック抜き（(.+)）→ チル明け$/,"Kick-out ($1) → out of the chill"],
+  [/^チル明け：通常のグルーヴに復帰$/,"Chill over: back to the groove"],
+  [/^(\d+)小節後からチル展開：(.+?)、(\d+)小節（(\d+)小節後に(.+?)で復帰、テンポは(.+?)のまま）$/,"Chill-out in $1 bars: $2, $3 bars (back in $4 bars via $5, tempo stays in the $6)"],
+  [/^(.+?)（セット移行の入口）$/,"$1 (into the set change)"],
+  [/^アンビエント・ブリッジ (\d+)小節（ビートレス）→ (\d+)小節目で(.+?)が始まる$/,"Ambient bridge $1 bars (beatless) → $3 starts at bar $2"],
+  [/^(.+?)→(.+?)：ビートレス区間でテンポ (\d+)→(\d+) BPM$/,"$1 → $2: tempo $3 → $4 BPM during the beatless section"],
+  [/^(.+?)セットへ：(\d+)小節後に(?:(.+?)で落として)?アンビエント・ブリッジ（(\d+)小節、キックなし）の間にテンポを(\d+) BPMへ、(\d+)小節後に(.+?)で再開$/,
+    (m,b,n,how,len,to,n2,st)=>`To the ${b} set: in ${n} bars, ${how?how+" into ":""}an ambient bridge (${len} bars, no kick) moves the tempo to ${to} BPM; ${st} restarts in ${n2} bars`],
+  [/^クロージング中のためブレイクは見送ります$/,"Closing, so the break is skipped"],
+  [/^セット移行の準備中のため(.+?)は見送ります$/,"Skipping $1: a set change is being prepared"],
+  [/^ミックス中のため(.+?)は交換ポイントの後に回せません（交換ポイントのブレイクに任せます）$/,"Mixing: $1 can't go after the swap point (the swap-point break takes over)"],
+  [/^(.+?) → (\d+)小節目で復帰$/,"$1 → back in at bar $2"],
+  [/^(\d+)小節後に(.+?)：組み合わせはその都度変わります$/,"$2 in $1 bars: the combination changes each time"],
+  [/^(\d+)小節後に(.+?)：(.+)$/,"$2 in $1 bars: $3"],
+  [/^チル展開（待機中）$/,"Chill-out (queued)"],[/^(.+?)セットへの移行（待機中）$/,"Move to the $1 set (queued)"],[/^(.+?)へのミックス（待機中）$/,"Mix into $1 (queued)"],
+  [/^(.+?) → (.+?) のミックス計画（(.+)）$/,"Planned mix $1 → $2 ($3)"],
+  [/^チル展開の計画（(.+)）$/,"Planned chill-out ($1)"],
+  [/^(.+?)セットへの移行(.*)$/,"Move to the $1 set$2"],
+  [/^オープニングの雰囲気のまま余韻へ（キックは入れない）$/,"Into the tail, keeping the opening mood (no kick)"],
+  [/^クロージング開始：(\d+)小節でオープニングの雰囲気のまま静かに終える$/,"Closing: ending quietly in the opening mood over $1 bars"],
+  [/^クロージング完了：余韻をフェードアウトして停止$/,"Closing done: tail faded out, stopped"],
+  [/^クロージング：オープニング中のためキックは入れずに(\d+)小節後に終了（フェードアウトして停止）$/,"Closing: still in the opening, so no kick; ends in $1 bars (fade out, stop)"],
+  [/^クロージング開始：(\d+)小節かけてエネルギーを下げ、要素を抜いていく$/,"Closing: bringing the energy down and stripping elements over $1 bars"],
+  [/^アウトロ：キックアウト＋エコーの余韻、ハット・パーカッション・上モノを順に抜く$/,"Outro: kick out with an echo tail; hats, percussion and synths drop out in turn"],
+  [/^クロージング：(\d+)小節後に終了（(\d+)小節後にキックアウト＋エコー、その後フェードアウトして停止）$/,"Closing: ends in $1 bars (kick out + echo in $2 bars, then fade out and stop)"],
+  [/^ピーク前の(.+?)(\d+)小節（最後にスネアロール＋ライザー）$/,"Pre-peak $1 $2 bars (snare roll + riser at the end)"],
+  [/^ピーク！ 緊張を解放$/,"Peak! Tension released"],
+  [/^(\d+)小節後から(.+?)(\d+)小節＋ビルド → (\d+)小節後にピーク$/,"$2 $3 bars + build starting in $1 bars → peak in $4 bars"],
+  [/^キー：(.+?)のまま（(.+?)）$/,"Key: staying in $1 ($2)"],
+  [/^キー：(.+?) → (.+?)（(.+?)・カメロット隣接）$/,"Key: $1 → $2 ($3 · Camelot neighbour)"],
+  [/^(.+?)の雰囲気へ移行$/,"Shifting to the $1 vibe"],
+  [/^(.+?)（別のブレイク中のためスキップ）$/,"$1 (skipped: another break is running)"],
+  [/^チルの雰囲気へ$/,"Into the chill vibe"],[/^チル明けの雰囲気へ$/,"Out of the chill vibe"],[/^(.+?)セットの雰囲気へ$/,"Into the $1 set vibe"],
+  [/^クロージング：エネルギーを下げていく$/,"Closing: bringing the energy down"],[/^ピーク後に緊張感を解放$/,"Releasing the tension after the peak"],
+  [/^オープニングの雰囲気$/,"Opening vibe"],
+  [/^オープニング：パッドとこもったパーカッションから（ハット5小節目・上モノ9小節目・16小節後にキックイン）$/,"Opening: pads and muffled percussion first (hats at bar 5, synths at bar 9, kick in after 16 bars)"],
+  [/^セットリスト：次のアークを組み直し（(.+)）$/,"Set list: new arc ($1)"],
+  [/^セットリスト：チル展開を挟む（(.+?)のまま、(.+?)、(\d+)小節）$/,"Set list: chill-out inserted (staying on $1, $2, $3 bars)"],
+  [/^セットリスト：(.+?)へ → (.+?)（(\d+)小節ミックス(?:＋(.+))?）$/,(m,a,b,n,x)=>`Set list: on to ${a} → ${b} (${n}-bar mix${x?" + "+x:""})`],
+  [/^セットリスト：(.+?)へ（(.+?)のまま展開）$/,"Set list: on to $1 (developing $2)"],
+  [/^アーク：(.+?)の雰囲気$/,"Arc: $1 vibe"],
+  [/^クロージング中のため受け付けません（もう一度ストップで即停止）$/,"Closing: requests are off (press Stop again to stop now)"],
+  [/^おまかせは常にオン$/,"Autopilot is always on"],
+  [/^おまかせ オン（(.+?)のセットリストに沿って進行）$/,"Autopilot on (following the $1 set list)"],
+  [/^ホールド開始：今の状態をキープ$/,"Hold: keeping things as they are"],
+  [/^ホールド：今の状態をキープ（進行中のミックス／チル展開のみ完了させる）$/,"Hold: keeping things as they are (running mixes / chill-outs still finish)"],
+  [/^テンポ ([\d.]+) BPM$/,"Tempo $1 BPM"],
+  [/^テンポ(↑|↓)（(.+?)の中で ([\d.]+) BPM へ、1フレーズ1 BPM 以内でゆっくり）$/,"Tempo $1 (to $3 BPM within the $2, at most 1 BPM per phrase)"],
+  [/^(一気に|少しずつ)?(次の小節から|次の4小節境界から)(\d+)小節かけて変化$/,(m,sp,fr,n)=>`${sp==="一気に"?"Right away: ":sp?"Gradually: ":""}changing over ${n} bars from the ${fr==="次の小節から"?"next bar":"next 4-bar boundary"}`],
+  [/^ボタン「(.+)」$/,"Button “$1”"],
+  [/^「(.+)」$/,"“$1”"],
+  [/^(.+?)（途中で固定）$/,"$1 (frozen by hold)"],
+];
+const EN_SUFFIX=[["：到達（一部は後の指示で上書き）",": reached (partly overridden by a later request)"],["：到達",": reached"],["（途中で固定）"," (frozen by hold)"]];
+const escRe=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+const EN_TERM_RE=new RegExp(Object.keys(EN_TERMS).sort((a,b)=>b.length-a.length).map(escRe).join("|"),"g");
+const EN_PUNCT=[[/（/g," ("],[/）/g,")"],[/、/g,", "],[/：/g,": "],[/・/g," · "],[/＋/g," + "],[/／/g," / "],[/「/g,"“"],[/」/g,"”"],[/！/g,"!"],[/？/g,"?"],[/　/g," "],[/［/g,"["],[/］/g,"]"],[/＝/g," = "],[/％/g,"%"]];
+const trCache=new Map();
+function enTx(s){
+  s=String(s);if(!/[\u3000-\u30ff\u4e00-\u9fff\uff00-\uffef]/.test(s))return s;
+  if(trCache.has(s))return trCache.get(s);
+  let x=s,suf="";
+  for(const [j,e] of EN_SUFFIX)if(x.endsWith(j)){x=x.slice(0,-j.length);suf=e;break;}
+  if(EN_TERMS[x]!=null)x=EN_TERMS[x];
+  else{for(const [re,rep] of EN_RX){if(re.test(x)){x=x.replace(re,rep);if(re.source.startsWith("^"))break;}}
+    x=x.replace(EN_TERM_RE,m=>EN_TERMS[m]);
+    x=x.replace(/(\d+)小節目/g,"bar $1").replace(/(\d+)小節/g,(m,n)=>n==="1"?"1 bar":n+" bars").replace(/(\d+)\/(\d+)フレーズ/g,"$1/$2 phrases");}
+  x=(x+suf);for(const [re,r] of EN_PUNCT)x=x.replace(re,r);
+  x=x.replace(/\b1 bars\b/g,"1 bar").replace(/\s{2,}/g," ").replace(/\(\s+/g,"(").replace(/\s+\)/g,")").replace(/\s+([,:])/g,"$1").trim();
+  x=x.replace(/^[a-z]/,c=>c.toUpperCase());
+  if(trCache.size>4000)trCache.clear();trCache.set(s,x);return x;}
+const Tx=s=>LANG==="en"?enTx(s):String(s);
+const styleT=(st,band)=>Tx(styleJa(st,band));
+
 // ---------- Visualizer + state panel ----------
 const vizQ=[];let vizGrid=PARTS.map(()=>new Array(16).fill(0)),vizStep=-1,vizBar=0,vizDrop=false,vizBrk="",vizDropInfo="",vizFill=0,vizDecks=["minimal"];
 function queueViz(s,t,ev,bar){vizQ.push({s,t,ev,bar});}
@@ -2179,74 +2390,95 @@ const $=id=>document.getElementById(id);
 const cv=$("viz"),g2=cv.getContext("2d");
 const COL={kick:"#e05d5d",hat:"#f6ad55",clap:"#b794f4",perc:"#68d391",bass:"#4fd1c5",stab:"#63b3ed"};
 const METERS=["energy","dark","density","swing","tension","space"];
-$("meters").innerHTML=METERS.map(k=>`<span>${PARAM_JA[k]}</span><div class="meter" id="m-${k}"><i></i><b></b></div>`).join("");
+const PART_EN={kick:"Kick",hat:"Hats",clap:"Clap",perc:"Perc",bass:"Bass",stab:"Synths"};
+const BAND_BTN_EN={bchill:"Chill",b120:"120",b140:"140"};
+function renderMeters(){const old={};for(const k of METERS){const el=$("m-"+k);if(el)old[k]=[el.firstChild.style.width,el.lastChild.style.left];}
+  $("meters").innerHTML=METERS.map(k=>`<span>${Tx(PARAM_JA[k])}</span><div class="meter" id="m-${k}"><i></i><b></b></div>`).join("");
+  for(const k in old){const el=$("m-"+k);el.firstChild.style.width=old[k][0];el.lastChild.style.left=old[k][1];}}
+renderMeters();
 let lastPanel=0,shownLogVer=-1;
 const esc=x=>String(x).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const mmss=t=>`${String(Math.floor(t/60)).padStart(2,"0")}:${String(Math.floor(t%60)).padStart(2,"0")}`;
-function renderLog(log){$("logcount").textContent=log.length?`直近${log.length}件（最大${LOG_MAX}）`:"";
-  $("log").innerHTML=log.length?log.map(x=>`<li class="${x.status==="cancel"?"cx":""}"><span class="lb">${x.bar+1}小節 <i>F${Math.floor(x.bar/16)+1}-${x.bar%16+1}</i></span><span class="lt">${mmss(x.t)}</span><span class="ld">${x.status==="cancel"?"<b>取消</b>":""}${esc(x.text)}<em>${esc(x.src)}</em></span></li>`).join("")
-    :`<li class="empty">まだありません（スタートすると、終わった予定がここに残ります）</li>`;}
+// text setters: only touch the DOM when the text changes; the full text also goes into the tooltip (clamped / ellipsised boxes)
+function setTxt(id,t,tip){const el=typeof id==="string"?$(id):id;t=String(t);if(el.textContent!==t)el.textContent=t;const ti=tip===undefined?t:tip;if(el.title!==ti)el.title=ti;}
+function setHTML(id,h){const el=$(id);if(el.__h!==h){el.innerHTML=h;el.__h=h;}}
+const li2=(a,b)=>`<li><span title="${esc(a)}">${esc(a)}</span><span title="${esc(b)}">${esc(b)}</span></li>`;
+function renderLog(log){setTxt("logcount",log.length?Lx(`直近${log.length}件（最大${LOG_MAX}）`,`last ${log.length} (max ${LOG_MAX})`):"","");
+  setHTML("log",log.length?log.map(x=>`<li class="${x.status==="cancel"?"cx":""}"><span class="lb">${Lx(`${x.bar+1}小節`,`Bar ${x.bar+1}`)} <i>F${Math.floor(x.bar/16)+1}-${x.bar%16+1}</i></span><span class="lt">${mmss(x.t)}</span><span class="ld">${x.status==="cancel"?`<b>${Lx("取消","Cancelled")}</b>`:""}${esc(Tx(x.text))}<em>${esc(Tx(x.src||""))}</em></span></li>`).join("")
+    :`<li class="empty">${Lx("まだありません（スタートすると、終わった予定がここに残ります）","Nothing yet (finished events show up here once you start)")}</li>`);}
 function updatePanel(){
-  if(!eng){$("keyinfo").textContent="キー —";$("phrase").textContent="フレーズ —";$("setlist").innerHTML="";$("arc").innerHTML="";$("mixinfo").textContent="停止中";$("mixbar").style.width="0%";$("timeline").innerHTML="<li><span>—</span><span>スタートすると予定が表示されます</span></li>";return;}
+  if(!eng){setTxt("keyinfo",Lx("キー —","Key —"));setTxt("phrase",Lx("フレーズ —","Phrase —"));setHTML("setlist","");setHTML("arc","");setTxt("mixinfo",Lx("停止中","Stopped"));setTxt("upinfo","");$("mixbar").style.width="0%";
+    setTxt("nowStyle",styleT(BANDS[S.band].first,S.band));setTxt("arrow","");setTxt("nextStyle","");setTxt("holdinfo","");renderBand();
+    setHTML("timeline",li2("—",Lx("スタートすると予定が表示されます","Upcoming events show up once you start")));
+    if(shownLogVer!==-2){shownLogVer=-2;renderLog([]);}return;}
   const C=eng.cond,M=C.mix,b=vizBar;
-  $("phrase").textContent=`フレーズ ${Math.floor(b/16)+1} ・ ${b%16+1}/16小節`;
-  $("nowStyle").textContent=C.ja(eng.low.style)+(M&&M.state==="mixing"?"（キック・ベース）":"");
+  setTxt("phrase",Lx(`フレーズ ${Math.floor(b/16)+1} ・ ${b%16+1}/16小節`,`Phrase ${Math.floor(b/16)+1} · bar ${b%16+1}/16`));
+  setTxt("nowStyle",Tx(C.ja(eng.low.style))+(M&&M.state==="mixing"?Lx("（キック・ベース）"," (kick + bass)"):""));
   const nq=C.queue.find(q=>q.style),nx=M?M.to:(nq?nq.style:null);
-  $("arrow").textContent=nx?"→":"";$("nextStyle").textContent=nx?C.ja(nx):"";
+  setTxt("arrow",nx?"→":"");setTxt("nextStyle",nx?Tx(C.ja(nx)):"");
   const tgt=eng.bpmGlide?eng.bpmGlide.to:C.tempoTarget();
-  {const L=eng.low,B=M&&M.deckB&&M.state==="mixing"?M.deckB:null;
-    $("keyinfo").textContent=`キー ${keyLabel(L.key)}・${MODE_JA[L.mode]||""}`+(B&&B.key!==L.key?` → ${keyName(B.key)}`:"");}
-  $("bpm").textContent=`${eng.bpm.toFixed(1)} BPM${Math.abs(tgt-eng.bpm)>0.05?" → "+tgt.toFixed(1):""}`;
+  {const Lw=eng.low,B=M&&M.deckB&&M.state==="mixing"?M.deckB:null;
+    setTxt("keyinfo",Lx(`キー ${keyLabel(Lw.key)}・${MODE_JA[Lw.mode]||""}`,`Key ${keyName(Lw.key)} (${camelot(Lw.key)}A) · ${Tx(MODE_JA[Lw.mode]||"")}`)+(B&&B.key!==Lw.key?` → ${keyName(B.key)}`:""));}
+  setTxt("bpm",`${eng.bpm.toFixed(1)} BPM${Math.abs(tgt-eng.bpm)>0.05?" → "+tgt.toFixed(1):""}`);
   renderBand();
   const SL=C.set,cur=SL.list[SL.idx],CL=C.closing,pb=$("play");
-  if(CL){pb.textContent=CL.done?"■ フェードアウト中…（押すと即停止）":`■ クロージング中…あと${Math.max(0,CL.E-b)}小節（押すと即停止）`;pb.classList.add("closing");}
-  else{pb.textContent="■ ストップ";pb.classList.remove("closing");}
-  $("setlist").innerHTML=`<span class="bd">${BANDS[C.band].ja}${C.pendingBand?" → "+BANDS[C.pendingBand].ja:""}</span><span class="ph">セットリスト${C.auto?"":"（おまかせ時）"}：</span>`+
-    (CL?`<i class="cur oc">クロージング<small>あと${Math.max(0,CL.E-b)}小節</small></i>`:
-    (C.opening?`<i class="cur oc">オープニング<small>${Math.min(16,b+1)}/16小節</small></i>`:"")+
-    SL.list.slice(SL.idx,SL.idx+5).map((x,i)=>`<i class="${i===0&&!C.opening?"cur":""}${x.phase==="chill"?" ch":""}">${x.phase==="chill"?"☾ "+esc(x.style?C.ja(x.style):"チル"):esc(C.ja(x.style))}<small>${phJa(x.phase,C.band)}${i===0?` ${Math.min(SL.phr,x.phrases)}/${x.phrases}`:""}</small></i>`).join(""));
+  if(CL){setTxt(pb,CL.done?Lx("■ フェードアウト中…（押すと即停止）","■ Fading out… (press to stop now)"):Lx(`■ クロージング中…あと${Math.max(0,CL.E-b)}小節（押すと即停止）`,`■ Closing… ${Math.max(0,CL.E-b)} bars left (press to stop now)`));pb.classList.add("closing");}
+  else{setTxt(pb,Lx("■ ストップ","■ Stop"));pb.classList.remove("closing");}
+  const left=n=>Lx(`あと${n}小節`,`${n} left`);
+  setHTML("setlist",`<span class="bd">${esc(Tx(BANDS[C.band].ja))}${C.pendingBand?" → "+esc(Tx(BANDS[C.pendingBand].ja)):""}</span><span class="ph">${Lx("セットリスト","Set list")}${C.auto?"":Lx("（おまかせ時）"," (autopilot)")}${Lx("：",":")}</span>`+
+    (CL?`<i class="cur oc">${Tx("クロージング")}<small>${left(Math.max(0,CL.E-b))}</small></i>`:
+    (C.opening?`<i class="cur oc">${Tx("オープニング")}<small>${Math.min(16,b+1)}/16</small></i>`:"")+
+    SL.list.slice(SL.idx,SL.idx+5).map((x,i)=>`<i class="${i===0&&!C.opening?"cur":""}${x.phase==="chill"?" ch":""}">${x.phase==="chill"?"☾ "+esc(Tx(x.style?C.ja(x.style):"チル")):esc(Tx(C.ja(x.style)))}<small>${esc(Tx(phJa(x.phase,C.band)))}${i===0?` ${Math.min(SL.phr,x.phrases)}/${x.phrases}`:""}</small></i>`).join("")));
   const chOn=C.chill&&C.chill.state!=="planned";
   const special=CL?"closing":(C.opening?"opening":null);
-  $("arc").innerHTML=["opening",...PHASES.slice(0,3),"chill","release","closing"].filter(ph=>ph!=="chill"||!BANDS[C.band].noChill).map(ph=>{
+  setHTML("arc",["opening",...PHASES.slice(0,3),"chill","release","closing"].filter(ph=>ph!=="chill"||!BANDS[C.band].noChill).map(ph=>{
     const on=special?ph===special:(ph==="chill"?chOn:(!chOn&&cur&&cur.phase===ph));
-    return `<span class="${on?"on":""}${ph==="chill"?" ch":""}${ph==="opening"||ph==="closing"?" oc":""}">${phJa(ph,C.band)}</span>`;}).join("");
-  $("upinfo").textContent="上モノ："+eng.decks.filter(d=>d.upOn&&d.arr.init).map(d=>`${C.ja(d.style)}＝${((d.arr.chillPatch||patchList(d)[d.arr.variant])||{}).ja}・${SECTION_JA[d.arr.section]}`).join(" ／ ")
-    +(eng.orn&&eng.orn.strip?` ／ ストリップ（あと${Math.max(0,eng.orn.strip.end-b)}小節）`:"")
-    +(eng.low&&eng.low.kit?` ／ ドラム：${eng.kitDesc(eng.low.kit)}`:"")
-    +(eng.jazz&&eng.jazz.on?` ／ ジャジー（エレピ ${eng.jazz.last||(eng.jazz.m11?"m11":"m9")}・${eng.jazz.ride?"ライド":"シェイカー"}${eng.jazz.walk?"・ウォーキングベース":""}・あと${Math.max(0,eng.jazz.end-b)}小節）`:"")
-    +(eng.chip&&eng.chip.on?` ／ チップチューン（${eng.chip.mode==="arp"?"アルペジオ":"リード"}・あと${Math.max(0,eng.chip.end-b)}小節）`:"");
+    return `<span class="${on?"on":""}${ph==="chill"?" ch":""}${ph==="opening"||ph==="closing"?" oc":""}">${esc(Tx(phJa(ph,C.band)))}</span>`;}).join(""));
+  const sep=Lx(" ／ "," / ");
+  setTxt("upinfo",Lx("上モノ：","Synths: ")+eng.decks.filter(d=>d.upOn&&d.arr.init).map(d=>`${Tx(C.ja(d.style))}${Lx("＝"," = ")}${Tx(((d.arr.chillPatch||patchList(d)[d.arr.variant])||{}).ja||"")}${Lx("・"," · ")}${Tx(SECTION_JA[d.arr.section]||"")}`).join(sep)
+    +(eng.orn&&eng.orn.strip?sep+Lx(`ストリップ（あと${Math.max(0,eng.orn.strip.end-b)}小節）`,`Stripped (${Math.max(0,eng.orn.strip.end-b)} bars left)`):"")
+    +(eng.low&&eng.low.kit?sep+Lx("ドラム：","Drums: ")+Tx(eng.kitDesc(eng.low.kit)):"")
+    +(eng.jazz&&eng.jazz.on?sep+Lx(`ジャジー（エレピ ${eng.jazz.last||(eng.jazz.m11?"m11":"m9")}・${eng.jazz.ride?"ライド":"シェイカー"}${eng.jazz.walk?"・ウォーキングベース":""}・あと${Math.max(0,eng.jazz.end-b)}小節）`,
+      `Jazzy (Rhodes ${eng.jazz.last||(eng.jazz.m11?"m11":"m9")} · ${eng.jazz.ride?"ride":"shaker"}${eng.jazz.walk?" · walking bass":""} · ${Math.max(0,eng.jazz.end-b)} bars left)`):"")
+    +(eng.chip&&eng.chip.on?sep+Lx(`チップチューン（${eng.chip.mode==="arp"?"アルペジオ":"リード"}・あと${Math.max(0,eng.chip.end-b)}小節）`,`Chiptune (${eng.chip.mode==="arp"?"arp":"lead"} · ${Math.max(0,eng.chip.end-b)} bars left)`):""));
+  const sj=x=>Tx(C.ja(x));
   if(M){const pr=Math.max(0,Math.min(1,(b-M.m)/M.L));$("mixbar").style.width=(pr*100)+"%";
-    $("mixinfo").textContent=b<M.m?`${M.m-b}小節後にミックス開始（${C.ja(M.from)} → ${C.ja(M.to)}、${M.L}小節）`:
-      `ミックス中 ${Math.round(pr*100)}%：${C.ja(M.from)} → ${C.ja(M.to)}（${M.state==="swapped"?"キック＋ベース交換済み":"交換まで"+(M.swap-b)+"小節"}）`;}
+    setTxt("mixinfo",b<M.m?Lx(`${M.m-b}小節後にミックス開始（${C.ja(M.from)} → ${C.ja(M.to)}、${M.L}小節）`,`Mix starts in ${M.m-b} bars (${sj(M.from)} → ${sj(M.to)}, ${M.L} bars)`):
+      Lx(`ミックス中 ${Math.round(pr*100)}%：${C.ja(M.from)} → ${C.ja(M.to)}（${M.state==="swapped"?"キック＋ベース交換済み":"交換まで"+(M.swap-b)+"小節"}）`,
+        `Mixing ${Math.round(pr*100)}%: ${sj(M.from)} → ${sj(M.to)} (${M.state==="swapped"?"kick + bass swapped":"swap in "+(M.swap-b)+" bars"})`));}
   else if(C.chill){const H=C.chill,pr=Math.max(0,Math.min(1,(b-H.inB)/(H.end-H.inB)));$("mixbar").style.width=(pr*100)+"%";
-    $("mixinfo").textContent=H.state==="planned"?`${H.inB-b}小節後にチル展開（${CHILL_MODE_JA[H.mode]}、${H.L}小節）`:
-      `チル展開中：${CHILL_MODE_JA[H.mode]}（${H.state==="out"?"復帰に向けて上昇中":H.state==="in"?"チルへ移行中":"チル"}、${Math.max(0,H.end-b)}小節後に復帰）`;}
+    setTxt("mixinfo",H.state==="planned"?Lx(`${H.inB-b}小節後にチル展開（${CHILL_MODE_JA[H.mode]}、${H.L}小節）`,`Chill-out in ${H.inB-b} bars (${Tx(CHILL_MODE_JA[H.mode])}, ${H.L} bars)`):
+      Lx(`チル展開中：${CHILL_MODE_JA[H.mode]}（${H.state==="out"?"復帰に向けて上昇中":H.state==="in"?"チルへ移行中":"チル"}、${Math.max(0,H.end-b)}小節後に復帰）`,
+        `Chill-out: ${Tx(CHILL_MODE_JA[H.mode])} (${H.state==="out"?"rising back":H.state==="in"?"easing in":"chilling"}, back in ${Math.max(0,H.end-b)} bars)`));}
   else if(CL){$("mixbar").style.width=(Math.max(0,Math.min(1,(b-CL.c0+1)/(CL.E-CL.c0+1)))*100)+"%";
-    $("mixinfo").textContent=CL.done?"クロージング完了：余韻をフェードアウトしています":(CL.fromOpening?`クロージング中：オープニングの雰囲気のまま静かに終了（${Math.max(0,CL.E-b)}小節後に終了）`:b<CL.o0?`クロージング中：エネルギーを下げています（${CL.o0-b}小節後にキックアウト）`:`アウトロ：キックアウト＋エコーの余韻（${CL.E-b}小節後に終了）`);}
-  else if(C.opening){$("mixbar").style.width=(Math.min(1,(b+1)/16)*100)+"%";$("mixinfo").textContent=`オープニング：パッドとこもったパーカッション（${Math.max(0,16-b)}小節後にキックイン）`;}
-  else{$("mixbar").style.width="0";$("mixinfo").textContent=C.pendingBand?`${BANDS[C.pendingBand].ja}セットへ移行準備中（ビートレス区間でテンポ切替）`:(C.queue.length?"次のミックスを準備中":"ミックスなし");}
+    setTxt("mixinfo",CL.done?Lx("クロージング完了：余韻をフェードアウトしています","Closing done: fading out the tail"):(CL.fromOpening?Lx(`クロージング中：オープニングの雰囲気のまま静かに終了（${Math.max(0,CL.E-b)}小節後に終了）`,`Closing: ending quietly in the opening mood (ends in ${Math.max(0,CL.E-b)} bars)`)
+      :b<CL.o0?Lx(`クロージング中：エネルギーを下げています（${CL.o0-b}小節後にキックアウト）`,`Closing: bringing the energy down (kick out in ${CL.o0-b} bars)`)
+      :Lx(`アウトロ：キックアウト＋エコーの余韻（${CL.E-b}小節後に終了）`,`Outro: kick out + echo tail (ends in ${CL.E-b} bars)`)));}
+  else if(C.opening){$("mixbar").style.width=(Math.min(1,(b+1)/16)*100)+"%";setTxt("mixinfo",Lx(`オープニング：パッドとこもったパーカッション（${Math.max(0,16-b)}小節後にキックイン）`,`Opening: pads and muffled percussion (kick in ${Math.max(0,16-b)} bars)`));}
+  else{$("mixbar").style.width="0";setTxt("mixinfo",C.pendingBand?Lx(`${BANDS[C.pendingBand].ja}セットへ移行準備中（ビートレス区間でテンポ切替）`,`Getting ready for the ${Tx(BANDS[C.pendingBand].ja)} set (tempo change in a beatless section)`):(C.queue.length?Lx("次のミックスを準備中","Lining up the next mix"):Lx("ミックスなし","No mix")));}
   for(const k of METERS){const el=$("m-"+k);el.firstChild.style.width=(C.p[k]*100)+"%";el.lastChild.style.left=`calc(${C.target(k)*100}% - 1px)`;}
   const D=eng.drop;const items=[];
-  if(D.active)items.push(`<li><span>ブレイク中</span><span>${D.type==="kick"&&D.recipe&&D.recipe.name!=="手動"?"キック抜き（"+D.recipe.name+"）":BREAKS[D.type].ja}${D.endBar>0?`（${D.len}小節、残り${Math.max(1,D.endBar-b)}小節）`:"（手動）"}</span></li>`);
-  items.push(...C.events.map(e=>`<li><span>${e.bar-b<=0?"まもなく":"あと"+(e.bar-b)+"小節"}</span><span>${e.label}</span></li>`));
-  if(C.queue.length)items.push(...C.queue.map(q=>`<li><span>その後</span><span>${q.chill?"チル展開":q.band?BANDS[q.band].ja+"セットへ移行":C.ja(q.style)+"へミックス"}</span></li>`));
-  if(C.auto&&!items.length&&cur)items.push(`<li><span>おまかせ</span><span>${PHASE_JA[cur.phase]}：${C.ja(cur.style)}（${Math.min(SL.phr,cur.phrases)}/${cur.phrases}フレーズ）→ 次は${SL.list[SL.idx+1]?C.ja(SL.list[SL.idx+1].style):"アークを組み直し"}</span></li>`);
-  $("timeline").innerHTML=items.length?items.join(""):`<li><span>—</span><span>${C.hold?"ホールド中：このままキープ":"予定なし（意図を送ると計画されます）"}</span></li>`;
+  if(D.active)items.push(li2(Lx("ブレイク中","In break"),Tx(D.type==="kick"&&D.recipe&&D.recipe.name!=="手動"?"キック抜き（"+D.recipe.name+"）":BREAKS[D.type].ja)+(D.endBar>0?Lx(`（${D.len}小節、残り${Math.max(1,D.endBar-b)}小節）`,` (${D.len} bars, ${Math.max(1,D.endBar-b)} left)`):Lx("（手動）"," (manual)"))));
+  items.push(...C.events.map(e=>li2(e.bar-b<=0?Lx("まもなく","Soon"):Lx("あと"+(e.bar-b)+"小節","in "+(e.bar-b)+" bars"),Tx(e.label))));
+  if(C.queue.length)items.push(...C.queue.map(q=>li2(Lx("その後","Then"),q.chill?Lx("チル展開","Chill-out"):q.band?Lx(BANDS[q.band].ja+"セットへ移行",`Move to the ${Tx(BANDS[q.band].ja)} set`):Lx(C.ja(q.style)+"へミックス",`Mix into ${sj(q.style)}`))));
+  if(C.auto&&!items.length&&cur){const nx2=SL.list[SL.idx+1];items.push(li2(Lx("おまかせ","Autopilot"),Lx(`${PHASE_JA[cur.phase]}：${C.ja(cur.style)}（${Math.min(SL.phr,cur.phrases)}/${cur.phrases}フレーズ）→ 次は${nx2?C.ja(nx2.style):"アークを組み直し"}`,
+    `${Tx(PHASE_JA[cur.phase])}: ${sj(cur.style)} (${Math.min(SL.phr,cur.phrases)}/${cur.phrases} phrases) → next: ${nx2?sj(nx2.style):"new arc"}`)));}
+  setHTML("timeline",items.length?items.join(""):li2("—",C.hold?Lx("ホールド中：このままキープ","Holding: keeping it as is"):Lx("予定なし（意図を送ると計画されます）","Nothing planned (send an intent to plan something)")));
   if(C.logVer!==shownLogVer){shownLogVer=C.logVer;renderLog(C.log);}
-  $("holdinfo").textContent=C.hold?"ホールド中":(C.auto?"おまかせ中":"");
+  setTxt("holdinfo",C.hold?Lx("ホールド中","Holding"):(C.auto?Lx("おまかせ中","Autopilot on"):""));
 }
 function draw(){
   requestAnimationFrame(draw);
   if(ctx&&playing){const now=ctx.currentTime;
     while(vizQ.length&&vizQ[0].t<=now){const q=vizQ.shift();vizStep=q.s;vizBar=q.bar;vizDrop=q.ev.drop;vizBrk=q.ev.brk;vizDropInfo=q.ev.dropInfo;vizFill=q.ev.fill;vizDecks=q.ev.decks;
       PARTS.forEach((p,i)=>{vizGrid[i][q.s]=q.ev[p];});}
-    $("status").textContent=`再生中 ・ ${ticker?ticker.kind:""}`;}
+    setTxt("status",Lx(`再生中 ・ ${ticker?ticker.kind:""}`,`Playing · ${ticker?ticker.kind:""}`));}
   const pn=performance.now();if(pn-lastPanel>200){lastPanel=pn;updatePanel();}
   const W=cv.width,H=cv.height,lw=230,top=46,cw=(W-lw-20)/16,rh=(H-top-10)/PARTS.length;
   g2.fillStyle="#0b0c0f";g2.fillRect(0,0,W,H);g2.textBaseline="middle";g2.font="24px system-ui,sans-serif";
-  if(playing&&vizBrk){g2.fillStyle=vizDrop?"rgba(224,93,93,0.18)":"rgba(246,173,85,0.16)";g2.fillRect(0,0,W,top-6);g2.fillStyle=vizDrop?"#ff8a8a":"#f6c27a";g2.fillText("● ブレイク中 — "+vizDropInfo+(vizFill?"  ／ フィル":""),14,top/2-2);}
-  else{g2.fillStyle="#56606b";g2.fillText(playing?("デッキ："+vizDecks.map(d=>styleJa(d)).join(" ＋ ")+`　［${BANDS[S.band].ja}］`):"停止中",14,top/2-2);}
-  PARTS.forEach((p,i)=>{const y=top+i*rh;g2.fillStyle="#9aa3ad";g2.fillText(PART_JA[p],14,y+rh/2);
+  if(playing&&vizBrk){g2.fillStyle=vizDrop?"rgba(224,93,93,0.18)":"rgba(246,173,85,0.16)";g2.fillRect(0,0,W,top-6);g2.fillStyle=vizDrop?"#ff8a8a":"#f6c27a";g2.fillText(Lx("● ブレイク中 — ","● Break — ")+Tx(vizDropInfo)+(vizFill?Lx("  ／ フィル","  / fill"):""),14,top/2-2);}
+  else{g2.fillStyle="#56606b";g2.fillText(playing?(Lx("デッキ：","Decks: ")+vizDecks.map(d=>styleT(d)).join(" ＋ ".replace(/＋/,Lx("＋","+")))+Lx(`　［${BANDS[S.band].ja}］`,`  [${Tx(BANDS[S.band].ja)}]`)):Lx("停止中","Stopped"),14,top/2-2);}
+  PARTS.forEach((p,i)=>{const y=top+i*rh;g2.fillStyle="#9aa3ad";g2.fillText(Lx(PART_JA[p],PART_EN[p]),14,y+rh/2);
     for(let s=0;s<16;s++){const x=lw+s*cw,v=vizGrid[i][s];
       g2.fillStyle=s%4===0?"#1d2026":"#15171b";g2.fillRect(x+3,y+4,cw-6,rh-8);
       if(v){g2.globalAlpha=0.35+0.65*Math.min(1,v)*(s===vizStep?1:0.55);g2.fillStyle=COL[p];g2.fillRect(x+3,y+4,cw-6,rh-8);g2.globalAlpha=1;}}
@@ -2256,41 +2488,47 @@ function draw(){
 requestAnimationFrame(draw);
 
 // ---------- UI ----------
-function setPlayUI(on){const b=$("play");b.textContent=on?"■ ストップ":"▶ スタート";b.classList.toggle("on",on);if(!on)$("status").textContent="停止中";}
+function setPlayUI(on){const b=$("play");setTxt(b,on?Lx("■ ストップ","■ Stop"):Lx("▶ スタート","▶ Start"));b.classList.toggle("on",on);if(!on)setTxt("status",Lx("停止中","Stopped"));}
 // ストップ = クロージング（フレーズ単位で徐々に終わる）。クロージング中にもう一度押すと即停止（短いフェード）
 function beginClose(){if(!eng)return stop();const labels=[];eng.cond.curSrc="ストップ";eng.cond.startClosing(labels);eng.cond.curSrc=null;showInterp({ok:true,labels},"");updatePanel();}
 $("play").addEventListener("click",()=>{if(!playing)start();else if(eng&&eng.cond.closing)stop();else beginClose();});
 const INTENT_BTNS=["盛り上げて","もっとハードに","落ち着かせて","暗く","明るく","グルーヴを出して","トライバルに","ミニマルに戻して","ブレイク入れて","ピークを作って","ずっとこのまま","ブレイクビート風に","チル帯で","120帯で","140帯で","少しテンポを上げて","少しテンポを下げて","チルに","ちょっと休憩","ハーフタイムでチル","ビートレスで一息"];
-$("intents").innerHTML=INTENT_BTNS.map(t=>`<button data-intent="${t}">${t}</button>`).join("");
+const intentBtn=t=>{const lb=Tx(t);return `<button data-intent="${esc(t)}" title="${esc(lb)}">${esc(lb)}</button>`;};
+function renderIntents(){setHTML("intents",INTENT_BTNS.map(intentBtn).join(""));}
+renderIntents();
 $("intents").addEventListener("click",e=>{const b=e.target.closest("button");if(b)sendIntent(b.dataset.intent);});
 const QUICK_BRK=["おまかせ",...BREAK_ORDER];
-$("breaks").insertAdjacentHTML("beforeend",QUICK_BRK.map(k=>`<button data-brk="${k}" title="${k==="おまかせ"?"今の雰囲気に合うブレイクを選ぶ":BREAKS[k].desc}">${k==="おまかせ"?"おまかせ":BREAKS[k].ja}</button>`).join(""));
-function planBreakUI(type,len){if(!eng){pendingIntents.push(type==="おまかせ"?"ブレイク入れて":BREAKS[type].ja);$("interp").textContent="スタート後に反映します";return null;}
+function renderBreaks(){const el=$("breaks");el.querySelectorAll("button").forEach(b=>b.remove());
+  el.insertAdjacentHTML("beforeend",QUICK_BRK.map(k=>`<button data-brk="${k}" title="${esc(Tx(k==="おまかせ"?"今の雰囲気に合うブレイクを選ぶ":BREAKS[k].desc))}">${esc(Tx(k==="おまかせ"?"おまかせ":BREAKS[k].ja))}</button>`).join(""));}
+renderBreaks();
+function planBreakUI(type,len){if(!eng){pendingIntents.push(type==="おまかせ"?"ブレイク入れて":BREAKS[type].ja);$("interp").classList.remove("bad");lastInterp={pend:""};setTxt("interp",Lx("スタート後に反映します","Will apply once you start"));return null;}
   const labels=[],C=eng.cond;C.hold=false;C.curSrc=`ボタン「${type==="おまかせ"?"おまかせ":BREAKS[type].ja}」`;const r=C.planBreak(C.bar,len||null,labels,null,type==="おまかせ"?null:type,{});
   C.curSrc=null;showInterp({ok:true,labels},"");updatePanel();return r;}
 $("breaks").addEventListener("click",e=>{const b=e.target.closest("button");if(b)planBreakUI(b.dataset.brk,0);});
-function showInterp(res,text){const el=$("interp");$("suggest").innerHTML="";
-  if(res.ok){el.classList.remove("bad");el.textContent="解釈："+res.labels.join(" ・ ");}
-  else{el.classList.add("bad");el.textContent=`「${text}」はうまく読み取れませんでした。こんな言い方を試してみてください：`;
-    $("suggest").innerHTML=res.suggest.map(s=>`<button data-intent="${s}">${s}</button>`).join("");}}
+let lastInterp=null;   // kept so a language switch can re-render the current interpretation
+function showInterp(res,text){lastInterp={res,text};const el=$("interp");setHTML("suggest","");
+  if(res.ok){el.classList.remove("bad");setTxt(el,Lx("解釈：","Got it: ")+res.labels.map(Tx).join(" ・ ".replace("・",Lx("・","·"))));}
+  else{el.classList.add("bad");setTxt(el,Lx(`「${text}」はうまく読み取れませんでした。こんな言い方を試してみてください：`,`Couldn't read “${Tx(text)}”. Try one of these:`));
+    setHTML("suggest",res.suggest.map(intentBtn).join(""));}}
 $("suggest").addEventListener("click",e=>{const b=e.target.closest("button");if(b)sendIntent(b.dataset.intent);});
 function sendIntent(text){text=String(text||"").trim();if(!text)return;
-  if(!eng){pendingIntents.push(text);$("interp").classList.remove("bad");$("interp").textContent=`「${text}」はスタート後に反映します`;return;}
+  if(!eng){pendingIntents.push(text);$("interp").classList.remove("bad");lastInterp={pend:text};setTxt("interp",Lx(`「${text}」はスタート後に反映します`,`“${Tx(text)}” will apply once you start`));return;}
   const res=eng.cond.intent(text);showInterp(res,text);updatePanel();return res;}
 function renderBand(){const b=eng?eng.cond.band:S.band,pb=eng?eng.cond.pendingBand:null;
-  for(const k of Object.keys(BANDS)){const el=$("band"+k);el.classList.toggle("on",k===b);el.textContent=BANDS[k].ja+(k===pb?"…":"");}}
+  for(const k of Object.keys(BANDS)){const el=$("band"+k);el.classList.toggle("on",k===b);setTxt(el,Lx(BANDS[k].ja,BAND_BTN_EN[k])+(k===pb?"…":""),Tx(BANDS[k].ja)+(k===pb?"…":""));}}
 $("bandbchill").parentNode.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
-  if(eng)sendIntent(BANDS[b.dataset.band].ja+"で");else{S.band=b.dataset.band;renderBand();$("bpm").textContent=`${BANDS[S.band].start} BPM`;$("nowStyle").textContent=styleJa(BANDS[S.band].first);}});
-function bind(id,key,fmt,after){const el=$(id);const upd=()=>{S[key]=+el.value;const v=$("v-"+id);if(v)v.textContent=fmt(S[key]);if(after)after();};el.addEventListener("input",upd);upd();}
-bind("vol","vol",v=>v,()=>eng&&eng.applyParams());
-let dropDownAt=0,dropArmedByThisPress=false;
-function setDrop(on){S.dropManual=on;}
-function dropDown(){if(S.dropManual){setDrop(false);dropArmedByThisPress=false;}else{setDrop(true);dropArmedByThisPress=true;dropDownAt=performance.now();}}
-function dropUp(){if(dropArmedByThisPress&&performance.now()-dropDownAt>350)setDrop(false);dropArmedByThisPress=false;}
-document.addEventListener("keydown",e=>{if(e.target.tagName==="INPUT"&&e.target.type==="text")return;
-  if(e.code==="Space"){e.preventDefault();$("play").click();}
-  else if(e.code==="KeyK"&&!e.repeat){e.preventDefault();dropDown();}});
-document.addEventListener("keyup",e=>{if(e.code==="KeyK")dropUp();});
+  if(eng)sendIntent(BANDS[b.dataset.band].ja+"で");else{S.band=b.dataset.band;renderBand();$("bpm").textContent=`${BANDS[S.band].start} BPM`;setTxt("nowStyle",styleT(BANDS[S.band].first,S.band));}});
+// language switch: static labels now, dynamic panel texts on the next refresh (log entries are re-rendered in the new language)
+function applyLang(){document.documentElement.lang=LANG;
+  for(const el of document.querySelectorAll("[data-i18n]")){const [ja,en]=el.dataset.i18n.split("|");el.textContent=Lx(ja,en);}
+  for(const el of document.querySelectorAll("[data-i18n-title]")){const [ja,en]=el.dataset.i18nTitle.split("|");el.title=Lx(ja,en);}
+  for(const k of ["ja","en"])$("lang-"+k).classList.toggle("on",LANG===k);
+  renderIntents();renderBreaks();renderMeters();renderBand();
+  if(!playing)setPlayUI(false);else if(eng&&!eng.cond.closing)setTxt("play",Lx("■ ストップ","■ Stop"));
+  if(lastInterp){if(lastInterp.res)showInterp(lastInterp.res,lastInterp.text);else if(lastInterp.pend)setTxt("interp",Lx(`「${lastInterp.pend}」はスタート後に反映します`,`“${Tx(lastInterp.pend)}” will apply once you start`));else setTxt("interp",Lx("スタート後に反映します","Will apply once you start"));}
+  shownLogVer=-1;lastPanel=0;try{updatePanel();}catch(_){}}
+$("langsel").addEventListener("click",e=>{const b=e.target.closest("button");if(!b||b.dataset.lang===LANG)return;LANG=b.dataset.lang;try{localStorage.setItem(LANG_KEY,LANG);}catch(_){}applyLang();});
+applyLang();
 
 // ---------- Test hook: offline render with scripted intents (not used by UI) ----------
 window.__renderOffline=async function(o){

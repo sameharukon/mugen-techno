@@ -14,6 +14,8 @@
 - **おまかせ**: 常にオンです。オン／オフのボタンはなく、止める操作もありません。「ずっとこのまま」は次の意図が来るまで一時停止するだけで、そのあとまた動きます
 - **消化した予定**: 意図カードの下。終わった予定と取り消した予定が残ります（下記）
 
+パネルの大きさは文字数で変わりません。長い文は枠の中で切れます。タイトル横の JA / EN で表示を切り替えます。最初の言語は `navigator.language` から決まり、日本語なら日本語、それ以外は英語です。選んだ言語は `localStorage` の `mugentechno.lang` に残ります。
+
 スタートは 120帯・ミニマルです。キーとモードはセットごとに決まり、スタイル行の右に出ます（下記）。スタイルの表示名は帯で変わります。チル帯はディープ・ミニマル、ダブテクノ、オーガニック・ローファイ、ダウンテンポ（ハーフタイム）、アンビエント・テクノ。120帯はミニマル、トライバル、ブロークン、グルーヴィー、インダストリアル。140帯はハイプノティック、ピークタイム・トライバル、ブロークン（速め）、ハードグルーヴ、ハードテクノです。
 
 ![ライブ画面](live/test/screenshot.png)
@@ -185,6 +187,8 @@ Playwright で `live/index.html` を開く Node テストです。`smoke5.mjs` �
 - `v21_drums.mjs` — 各帯の長めのおまかせで、ハット・クラップ・パーカッションのパターンと音色の変化、フレーズ境界とデッキ交換での入れ替わり、同時に鳴る層の数を見る。引数はラベル、HTML のパス、シード数（省略時 5）、小節数（省略時 384）
 - `v22_jazzmesh.mjs` — 各帯で、ジャジー中のスウィングのずれ、ミックス・ブレイク・チル・入れ替わり・キー変化との重なり、エレピとパッドの帯域を見る。引数はラベル、HTML のパス、シード数（省略時 4）、小節数（省略時 384）
 - `v23_contrast.mjs` — 各帯の長めのおまかせで、小節ごとの飾りと密度のばらつき、ストリップ、16 小節境目の変化数、フレーズ途中との差を見る。引数はラベル、HTML のパス、シード数（省略時 5）、小節数（省略時 448）
+- `v24_ui.mjs` — 再生中にパネルの位置と大きさが動かないこと、英語表示に日本語が残らないこと、JA / EN の切り替えが `localStorage` に残ることを見る。引数は英語での帯あたりの秒数（省略時 120）
+- `v24_i18n_cov.mjs` — おまかせと意図ボタンで出る文言を英語に通し、日本語が残るものを探す。引数はシード数（省略時 3）、小節数（省略時 320）
 
 ```bash
 cd live/test
@@ -214,9 +218,11 @@ node v20_jazz.mjs            # シード数、小節数
 node v21_drums.mjs           # ラベル、HTML、シード数、小節数
 node v22_jazzmesh.mjs        # ラベル、HTML、シード数、小節数
 node v23_contrast.mjs        # ラベル、HTML、シード数、小節数
+node v24_ui.mjs              # 英語での帯あたりの秒数
+node v24_i18n_cov.mjs        # シード数、小節数
 ```
 
-各スクリプトはページを `file:///workspace/techno/live/index.html` として開き、Chrome を `/usr/bin/google-chrome` から起動します。`smoke5.mjs`、`smoke6_breaks.mjs`、`smoke7_log.mjs` は `?noopening` を付けてオープニングを飛ばします。`break_analysis.mjs` は引数で HTML のパスを渡せます。`smoke5.mjs` と `shot.mjs` は `live/test/screenshot.png` を、`smoke6_breaks.mjs` は `live/test/screenshot_break.png` を上書きします。
+各スクリプトはページを `file:///workspace/techno/live/index.html` として開き、Chrome を `/usr/bin/google-chrome` から起動します。既存のスモークテストは、ブラウザのロケールを `ja-JP` にしない限り英語表示で動きます。`smoke5.mjs`、`smoke6_breaks.mjs`、`smoke7_log.mjs` は `?noopening` を付けてオープニングを飛ばします。`break_analysis.mjs` は引数で HTML のパスを渡せます。`smoke5.mjs` と `shot.mjs` は `live/test/screenshot.png` を、`smoke6_breaks.mjs` は `live/test/screenshot_break.png` を上書きします。
 
 ## 公開
 
