@@ -1,6 +1,7 @@
 {
   "name": "techno-generator",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy"

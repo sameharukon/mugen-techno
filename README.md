@@ -233,3 +233,7 @@ npm i && npx wrangler deploy
 ```
 
 `live/.assetsignore` が `test/` とバックアップをサイトから外します。
+
+## ライセンス
+
+このリポジトリは MIT License です（`Copyright (c) 2026 sameharukon`）。
