@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "techno-generator",
+  "compatibility_date": "2026-10-01",
+  // Assets-only Worker: serves live/index.html as a static site (no server code)
+  "assets": {
+    "directory": "./live"
+  },
+  "workers_dev": true,
+  "preview_urls": false
+}

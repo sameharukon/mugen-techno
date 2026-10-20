@@ -217,3 +217,13 @@ node v23_contrast.mjs        # ラベル、HTML、シード数、小節数
 ```
 
 各スクリプトはページを `file:///workspace/techno/live/index.html` として開き、Chrome を `/usr/bin/google-chrome` から起動します。`smoke5.mjs`、`smoke6_breaks.mjs`、`smoke7_log.mjs` は `?noopening` を付けてオープニングを飛ばします。`break_analysis.mjs` は引数で HTML のパスを渡せます。`smoke5.mjs` と `shot.mjs` は `live/test/screenshot.png` を、`smoke6_breaks.mjs` は `live/test/screenshot_break.png` を上書きします。
+
+## 公開
+
+ライブの URL は https://techno-generator.sameworker.workers.dev です。リポジトリのルートで次を実行すると、`live/` を Cloudflare Workers の静的サイトとしてデプロイします。
+
+```bash
+npm i && npx wrangler deploy
+```
+
+`live/.assetsignore` が `test/` とバックアップをサイトから外します。

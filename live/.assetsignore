@@ -1,0 +1,6 @@
+# keep only the app itself in the deployed site
+test/
+*.bak.html
+*.wav
+*.py
+.assetsignore
