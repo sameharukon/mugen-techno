@@ -548,9 +548,11 @@ class Engine{
     for(const [m,pen] of [[1,0],[1.5,2.5]])for(let k=-2;k<=2;k++){const c=h*m*Math.pow(2,k),sc=Math.abs(12*Math.log2(c/f1))+pen;if(sc<bs){bs=sc;best=c;}}return best;}
   // bass pitch: pentatonic degree on the key root, following the low deck's chord when its harmony says so (snapped to its mode)
   // lift: notes below / on the root go up an octave (クロスブリード: the kick tail owns the sub on the root, the off-beat bass sits on / above it)
-  bassMidi(note,lift){const root=33+keyOff(),L=this.low;let rel=MINOR_PENT[note.deg]+12*note.oct;
+  bassMidi(note,lift){if(note.midi!=null)return note.midi;const root=33+keyOff(),L=this.low;let rel=MINOR_PENT[note.deg]+12*note.oct;
     if(L&&L.harm&&L.harm.bassFollow){const ch=this.chordOf(L).semi;if(ch){rel=snapTo(rel+(ch>6?ch-12:ch),L.scale);}}
     if(L&&L.harm){const pcs=this.chordPcs(L),pc=((rel%12)+12)%12;if(!pcs.includes(pc)&&pcs.some(x=>{const d=(x-pc+12)%12;return d===1||d===11||d===6;}))rel=this.snapChord(rel,0,pcs);}   // v18
+    if(this.jazz&&this.jazz.on&&L&&L.harm){const ch=this.chordOf(L).semi,tn=this.chordTones(L,ch,3),o=Math.floor(rel/12)*12;if(((tn[2]-tn[0])%12+12)%12===6)tn[2]=tn[0];   // v20: jazzy segment -> bass on roots / fifths only
+      rel=[tn[0],tn[2],tn[0]+12,tn[2]-12].map(x=>o+(((x%12)+12)%12)).concat([o+12+(((tn[0]%12)+12)%12)]).reduce((a,b)=>Math.abs(b-rel)<Math.abs(a-rel)?b:a);}
     let bm=root+rel;if(note.oct<=0&&bm>root+10)bm-=12;if(bm>root+12)bm-=12;if(bm<28)bm+=12;if(lift&&bm<root+3)bm+=12;return bm;}   // v14: same register as the A-minor version (root .. root+12, octave notes on top)
   bass(t,note,lm=1,lift=false){const c=this.ctx,len=this.s16*0.85*lm;
     const bm=this.bassMidi(note,lift),f=mtof(bm);
@@ -799,7 +801,7 @@ class Engine{
         if(d.loopBP){const ph=((this.bar+d.id*5)%8)/8,f=(650+2600*(0.5-0.5*Math.cos(2*Math.PI*ph)))*Math.pow(2,(0.5-p.dark)*0.8);d.loopBP.frequency.setTargetAtTime(Math.min(6000,f),t,0.6);}}
       if(this.debug)this.arrLog.push([this.bar,this.decks.map(d=>[d.id,d.style,(d.arr.chillPatch||patchList(d)[d.arr.variant]).n,d.arr.section,d.arr.motif?d.arr.motif.id:0,d.arr.layer2&&this.bar%16===0?d.arr.layer2:"",d.arr.chillPatch?d.arr.chillPatch.n:""])]);
       const padOk=!(D.active&&["bridge","intro","outro"].includes(D.type));
-      this.chipBar(t);
+      this.chipBar(t);this.jazzBar(t);
       const padNow=this.bar%8===0||this.chordOf(this.low).semi!==this.chordOf(this.low,this.bar-1).semi||this.padDeck!==this.low;  // v13: the pad follows the chord changes
       if(padNow&&(this.chillAmt>0.3||this.low.band==="bchill")&&padOk){this.padDeck=this.low;this.chillPad(t,this.chillAmt>0.3?this.chillAmt:0.55,this.padSpan(this.low));}   // chill band: warm pad bed throughout
       if(D.active&&D.type==="bridge"&&D.dir==="up"&&D.endBar-this.bar===2&&S.riser)this.riserFx(t,t+32*this.s16,520);   // tempo is final by now
@@ -836,9 +838,12 @@ class Engine{
     const bm=L.band==="b160"?BASS160[L.style]:(L.band==="bchill"?BASSCH[L.style]:null),
       b160Skip=bm==="none"?!(ca>0.5):(bm==="off"?s%4!==2:(bm==="sparse"?s%8!==0&&s%8!==3:(bm==="half"?(s%2===1||r()<0.4):false)));
     const bn=L.pat.bassAt(s,this.bar),bSkip=b160Skip||(ca>0.05&&(this.chillMode==="beatless"?s%8!==0&&s%8!==3:(s%4!==2&&r()<0.55*ca)));
-    if(M.b&&bn&&!bSkip){this.bass(t,bn,this.chillMode==="beatless"||bm==="sparse"?2.5:(bm==="off"?0.6:(bm==="half"?1.3:1)),L.band==="b160"&&L.style==="broken");ev.bass=1;if(this.debug)this.bassLog.push([t,L.id]);}
-    let h=0;if(M.u&&!(this.chip&&this.chip.on))for(const d of this.decks)if(d.upOn&&this.melOK(d))h=Math.max(h,this.upperStep(d.style,t,s,d)||0);ev.stab=h;
+    const JW=this.jazz.on&&this.jazz.walk&&!D.active&&this.chillMode!=="beatless";   // v20: walking-ish bass replaces the pattern
+    if(JW){if(M.b&&s%4===0){this.bass(t,this.jazzWalk(s),3);ev.bass=1;if(this.debug)this.bassLog.push([t,L.id]);}}
+    else if(M.b&&bn&&!bSkip){this.bass(t,bn,this.chillMode==="beatless"||bm==="sparse"?2.5:(bm==="off"?0.6:(bm==="half"?1.3:1)),L.band==="b160"&&L.style==="broken");ev.bass=1;if(this.debug)this.bassLog.push([t,L.id]);}
+    let h=0;if(M.u&&!(this.chip&&this.chip.on)&&!this.jazz.on)for(const d of this.decks)if(d.upOn&&this.melOK(d))h=Math.max(h,this.upperStep(d.style,t,s,d)||0);ev.stab=h;
     if(M.u&&this.chip.on)this.chipStep(t,s);
+    if(this.jazz.on)this.jazzStep(t,s,M);
     const B=D.active?BREAKS[D.type]:null;
     ev.dropInfo=D.active?(D.src==="auto"?`${D.type==="kick"&&D.recipe?"キック抜き（"+D.recipe.name+"）":B.ja+" "+D.len+"小節"}（残り${Math.max(0,D.endBar-this.bar)}）`:(S.dropManual?"キック抜き・手動（押下中）":"キック抜き・次の小節で復帰")):"";
     ev.style=L.style;ev.decks=this.decks.map(d=>d.style);
@@ -958,7 +963,7 @@ Object.assign(Engine.prototype,{
       this["upCtl_"+st]=ctl;(this.upSend=this.upSend||{})[st]={dry,ds,vs};}
     this.applyUpMix(S.band,0);
     this.padBus=c.createGain();this.padBus.gain.value=1;this.padBus.connect(this.bus.stab);
-    this.initChip();
+    this.initChip();this.initJazz();
     // kick room: the kick (post distortion) sends a little of its mids into the same space as the 上モノ (KICK_GLUE.room, 0 = off)
     this.kickRoomHP=c.createBiquadFilter();this.kickRoomHP.type="highpass";this.kickRoomHP.frequency.value=320;this.kickRoomHP.Q.value=0.7;
     this.kickRoom=c.createGain();this.kickRoom.gain.value=0;this.bus.kick.connect(this.kickRoomHP).connect(this.kickRoom).connect(this.upVerb);
@@ -1102,6 +1107,96 @@ Object.assign(Engine.prototype,{
 });
 
 // ---------- v15: chiptune colour layer (occasional spice: pulse/duty leads, NES-style arps, noise ticks, light bit-crush) ----------
+/* v20: jazzy flavour (Detroit / deep-techno colour). One occasional segment like the chip spice: Rhodes-style e-piano with
+   m9/m11 / 6-9 rootless voicings (voice-led, following the audible chord of the low deck), a lightly swung ride or shaker,
+   brush ghosts, and sometimes a walking-ish bass. Replaces the lead (melodic layer budget); kick stays straight 4/4. */
+const JAZZ_P={b120:.85,bchill:.8,b140:.22};          // chance per free 16-bar phrase line (after the cooldown)
+const JAZZ_COMP=[[0,10],[0,6],[3,10],[0,7,14],[6,14],[2,10],[0,11]];
+Object.assign(Engine.prototype,{
+  initJazz(){const c=this.ctx;
+    this.jazz={on:false,cool:0,start:-1,end:-1,vc:7};this.jazzSegs=[];this.jazzLog=[];
+    this.jzIn=c.createGain();this.jzIn.gain.value=1;
+    this.jzLp=c.createBiquadFilter();this.jzLp.type="lowpass";this.jzLp.frequency.value=900;this.jzLp.Q.value=0.4;
+    const pan=c.createStereoPanner(),lfo=c.createOscillator(),lg=c.createGain();lfo.frequency.value=4.2;lg.gain.value=0.3;lfo.connect(lg).connect(pan.pan);lfo.start();  // EP auto-pan tremolo
+    this.jzFade=c.createGain();this.jzFade.gain.value=0;
+    this.jzIn.connect(this.jzLp).connect(pan).connect(this.jzFade);
+    const dry=c.createGain();dry.gain.value=0.85;this.jzFade.connect(dry).connect(this.bus.stab);
+    const vs=c.createGain();vs.gain.value=0.3;this.jzFade.connect(vs).connect(this.upVerb);
+    const ds=c.createGain();ds.gain.value=0.1;this.jzFade.connect(ds).connect(this.send);
+    this.jzDrum=c.createGain();this.jzDrum.gain.value=0;this.jzDrum.connect(this.bus.hat);},
+  jazzBar(t){const J=this.jazz,C=this.chip,D=this.drop,bar=this.bar,bd=16*this.s16,cd=this.cond;
+    const blocked=!!(cd.closing||cd.opening||this.closed||cd.pendingBand||(D.active&&["bridge","intro","outro","breakdown"].includes(D.type)));
+    const stop=!!(cd.closing||cd.opening||this.closed||(D.active&&["bridge","intro","outro"].includes(D.type)));
+    if(J.on){if(stop||bar>=J.end)this.jazzOff(t,stop?0.25:bd*0.3);
+      else{if(bar===J.end-1)this.jazzFadeOut(t,bd);if((bar-J.start)%2===0)J.comp=JAZZ_COMP[Math.floor(this.rand()*JAZZ_COMP.length)];}
+      return;}
+    const force=this.jazzForceBar!=null&&bar===this.jazzForceBar;
+    if(C.on||bar<(C.end>=0?C.end+16:0))return;                         // never stacked with (or right after) the chip spice
+    if(!force&&(bar%16!==0||bar<32||blocked||D.active||cd.mix||bar<J.cool||cd.p.energy>0.85||this.chillMode==="beatless"))return;
+    if(!force&&this.rand()>(JAZZ_P[this.low.band]||0))return;
+    let len=force&&this.jazzForceLen?this.jazzForceLen:(this.rand()<0.5?8:16);
+    if(!force){const nx=cd.events.filter(x=>x.bar>bar&&x.bar<=bar+len&&(x.type==="mixStart"||x.type==="bandSwitch"||(x.type==="break"&&["bridge","breakdown"].includes(x.btype)))).map(x=>x.bar);
+      if(nx.length){len=Math.min(...nx)-bar;if(len<8)return;len=len>=16?16:8;}}
+    this.jazzOn(t,len);},
+  jazzOn(t,len){const J=this.jazz,d=this.low,r=this.rand,bd=16*this.s16,ch=d.band==="bchill";
+    Object.assign(J,{on:true,start:this.bar,end:this.bar+len,chill:ch,m11:r()<0.4,ride:r()<(ch?0.5:0.7),brush:r()<0.55,walk:r()<(ch?0.45:0.35),
+      comp:JAZZ_COMP[Math.floor(r()*JAZZ_COMP.length)],vc:6+Math.floor(r()*3),lvl:ch?0.8:0.9,last:null});
+    const g=this.jzFade.gain,f=this.jzLp.frequency,dg=this.jzDrum.gain;
+    g.cancelAndHoldAtTime(t);g.setTargetAtTime(J.lvl,t,bd*0.35);f.cancelAndHoldAtTime(t);f.setValueAtTime(900,t);f.exponentialRampToValueAtTime(ch?3000:3800,t+2*bd);
+    dg.cancelAndHoldAtTime(t);dg.setTargetAtTime(1,t,bd*0.4);
+    this.jazzSegs.push([this.bar,this.bar+len,d.band,J.m11?"m11":"m9",J.ride?"ride":"shaker",J.walk?1:0]);
+    this.cond.logItem(`ジャジー ${len}小節（エレピ ${J.m11?"m11":"m9"}・${J.ride?"ライド":"シェイカー"}${J.brush?"・ブラシ":""}${J.walk?"・ウォーキングベース":""}）`,"おまかせ","done",this.bar,t);},
+  jazzFadeOut(t,dur){const g=this.jzFade.gain,f=this.jzLp.frequency,dg=this.jzDrum.gain;
+    g.cancelAndHoldAtTime(t);g.setTargetAtTime(0,t,dur*0.3);f.cancelAndHoldAtTime(t);f.exponentialRampToValueAtTime(900,t+dur);dg.cancelAndHoldAtTime(t);dg.setTargetAtTime(0,t,dur*0.35);},
+  jazzOff(t,tau){const J=this.jazz;if(!J.on)return;J.on=false;
+    for(const g of [this.jzFade.gain,this.jzDrum.gain]){g.cancelAndHoldAtTime(t);g.setTargetAtTime(0,t,tau);}
+    const s=this.jazzSegs[this.jazzSegs.length-1];if(s)s[1]=this.bar;J.cool=J.start+96+Math.floor(this.rand()*3)*16;},   // >= 6 phrases between starts
+  // diatonic jazz voicing of the low deck's chord: [{m (semitones from key root), ext}] -- rootless, b9 / avoid-11 never used
+  jazzVoicing(bar){const L=this.low,J=this.jazz,sc=L.scale||MINOR_PENT,N=sc.length,semi=this.chordOf(L,bar).semi,ci=Math.max(0,sc.indexOf(semi));
+    const T=i=>{const k=ci+2*i;return sc[k%N]+12*Math.floor(k/N);},t0=T(0),iv=i=>((T(i)-t0)%12+12)%12;
+    const q3=iv(1),q5=iv(2),q7=iv(3),q9=iv(4),q11=iv(5);let v;
+    if(q3===3&&q5===6){v=[{m:T(1)},{m:T(3)}];if(q11===5)v.push({m:T(5),ext:11});}       // half-diminished: no b5 (tritone over the bass root), no b9
+    else if(q3===3){v=[{m:T(1)},{m:T(3)}];if(q9===2)v.push({m:T(4),ext:9});
+      if(J.m11&&q11===5)v.push({m:T(5),ext:11});else v.push({m:T(2)});}                  // m9 / m11 rootless
+    else if(q7===10){v=[{m:T(1)},{m:T(3)},{m:T(2)}];if(q9===2)v.push({m:T(4),ext:9});}   // dominant 9 (b7 in key)
+    else{v=[{m:T(1)},{m:T(2)},{m:t0+9,ext:6}];if(q9===2)v.push({m:T(4),ext:9});}         // major: 6/9 (no maj7 against the bass root)
+    v=v.filter(x=>sc.includes(((x.m%12)+12)%12));                                       // in key, always
+    const c=12+J.vc;for(const x of v){while(x.m-c>6)x.m-=12;while(c-x.m>5)x.m+=12;}     // smooth voice leading around a slowly drifting centre
+    v.sort((a,b)=>a.m-b.m);for(let i=1;i<v.length;i++)if(v[i].m-v[i-1].m<1)v[i].m+=12;
+    return {v,semi,lab:q3===3&&q5===6?"m7b5":(q3===3?(v.some(x=>x.ext===11)?"m11":(v.some(x=>x.ext===9)?"m9":"m7")):(q7===10?"9":"6/9"))};},
+  jazzStep(t,s,M){const J=this.jazz,r=this.rand,s16=this.s16,bar=this.bar,L=this.low,root=57+keyOff();
+    const sw=s%4===2?0.33*s16:0;                                                        // light 8th swing (hat/ride/EP comping only)
+    if(M.u){const comp=J.comp||[0,10],nb=this.chordOf(L,bar+1).semi!==this.chordOf(L).semi;
+      let hit=comp.includes(s),nextBar=false;if(nb&&s===14&&r()<0.5){hit=true;nextBar=true;}else if(nb&&s>=12&&!comp.includes(s))hit=false;
+      if(hit&&nextBar){const cur=this.chordPcs(L),N=this.jazzVoicing(bar+1).v;if(N.some(x=>cur.some(y=>{const d=((x.m-y)%12+12)%12;return d===1||d===11||d===6;})))hit=false;}  // anticipate only if it sits over the current chord
+      if(hit){const V=this.jazzVoicing(nextBar?bar+1:bar);if(r()<0.12)J.vc=Math.max(4,Math.min(10,J.vc+(r()<0.5?-1:1)));
+        const nx=comp.find(x=>x>s),dur=s16*Math.min(nextBar?10:12,(nx!=null?nx-s:16-s+(comp[0]||0))+(r()<0.5?2:0));
+        const notes=V.v.map(x=>({m:root+x.m,ext:x.ext||0}));
+        this.jzEP(t+sw,notes,dur,0.75+0.25*r());J.last=V.lab;J.pcs=V.v.map(x=>((x.m%12)+12)%12);
+        if(this.debug)this.jazzLog.push([t+sw,dur,notes.map(x=>x.m),notes.map(x=>x.ext),bar,s,V.lab]);}}
+    if(M.h){if(J.ride){if(s%4===0)this.jzRide(t,s%8===0?0.42:0.34);else if(s%8===6)this.jzRide(t+0.33*s16,0.26);}
+      else{if(s%2===1)this.hat(t+0.22*s16,0.11,0.03,0.012,0.25,6200,this.jzDrum,"bandpass");else this.hat(t,0.07,0.03,0.01,-0.2,6800,this.jzDrum,"bandpass");}}
+    if(M.c&&J.brush){if(s%4===3&&r()<0.2)this.hat(t+0.2*s16,0.07,0.06,0.03,(r()-0.5)*0.4,2400,this.jzDrum,"bandpass");
+      if((s===4||s===12)&&r()<0.5)this.hat(t,0.06,0.15,0.07,0,3000,this.jzDrum,"bandpass");}},
+  // walking-ish bass: quarter notes root - 3rd/5th - 5th/octave - diatonic approach to the next root (v14 register)
+  jazzWalk(s){const L=this.low,sc=L.scale||MINOR_PENT,N=sc.length,beat=s>>2,r=this.rand;
+    const sem=this.chordOf(L).semi,nx=this.chordOf(L,this.bar+1).semi,tn=this.chordTones(L,sem,3);let rel;
+    const root=33+keyOff(),dim=((tn[2]-tn[0])%12+12)%12===6,ep=(this.jazz.pcs||[]).concat(this.chordPcs(L)),
+      ok=x=>ep.every(y=>{const d=((x-y)%12+12)%12;return d!==1&&d!==11&&d!==6;});      // a passing bass note never rubs against the voicing / chord
+    const fifth=dim?sem+12:tn[2];
+    if(beat===0)rel=sem;else if(beat===1)rel=r()<0.4&&ok(tn[1])?tn[1]:fifth;else if(beat===2)rel=r()<0.6?fifth:sem+12;
+    else{const i=sc.indexOf(nx),c=i<0?[]:[sc[(i+1)%N]+(i+1>=N?12:0),sc[(i-1+N)%N]-(i===0?12:0)].filter(ok);rel=c.length?c[Math.floor(r()*c.length)]:fifth;}let m=root+(((rel%12)+12)%12);if(m>root+12)m-=12;if(m<28)m+=12;return {midi:m};},
+  jzEP(t,notes,dur,vel){const c=this.ctx,n=notes.length,pk=0.3*vel/Math.sqrt(n),rel=0.35;
+    notes.forEach((x,i)=>{const tt=t+i*0.006,f=mtof(x.m),car=c.createOscillator(),mod=c.createOscillator(),mg=c.createGain(),tine=c.createOscillator(),tg=c.createGain(),g=c.createGain();
+      car.type="sine";mod.type="sine";tine.type="sine";car.frequency.value=f;mod.frequency.value=f;tine.frequency.value=f*7.02;
+      mg.gain.setValueAtTime(f*1.6,tt);mg.gain.setTargetAtTime(f*0.25,tt,0.18);                            // bark on attack, mellow body
+      tg.gain.setValueAtTime(0.12*pk,tt);tg.gain.setTargetAtTime(0,tt,0.03);                              // tine ping
+      g.gain.setValueAtTime(0,tt);g.gain.linearRampToValueAtTime(pk,tt+0.004);g.gain.setTargetAtTime(pk*0.45,tt+0.004,0.35);
+      g.gain.setTargetAtTime(0,tt+dur,rel*0.3);
+      mod.connect(mg).connect(car.frequency);car.connect(g).connect(this.jzIn);tine.connect(tg).connect(this.jzIn);
+      const end=tt+dur+rel*2;for(const o of [car,mod,tine]){o.start(tt);o.stop(end);}this.free(car,mod,mg,tine,tg,g);});},
+  jzRide(t,vel){this.hat(t,vel*0.55,0.4,0.16,0.35,8200,this.jzDrum,"bandpass");this.hat(t,vel*0.35,0.04,0.012,0.35,11000,this.jzDrum,"highpass");},
+});
 const CHIP_P={b120:.5,bchill:.5,b140:.42};       // chance per free 16-bar phrase line (after a cooldown)
 const CHIP_DUTY=[0.125,0.25,0.5],CHIP_DUTY_JA={0.125:"12.5%",0.25:"25%",0.5:"50%"};
 Object.assign(Engine.prototype,{
@@ -1126,7 +1221,7 @@ Object.assign(Engine.prototype,{
         if(!C.chill&&this.rand()<0.12)C.duty=CHIP_DUTY[Math.floor(this.rand()*3)];}
       return;}
     const force=this.chipForceBar!=null&&bar===this.chipForceBar;
-    if(!force&&(bar%16!==0||bar<24||blocked||D.active||cd.mix||bar<C.cool||cd.p.energy>0.85))return;
+    if(!force&&(bar%16!==0||bar<24||blocked||D.active||cd.mix||bar<C.cool||this.jazz.on||bar<this.jazz.end+16||cd.p.energy>0.85))return;
     if(!force&&this.rand()>(CHIP_P[this.low.band]||0.2))return;
     let len=force&&this.chipForceLen?this.chipForceLen:(this.rand()<0.55?8:16);
     if(!force){const nx=cd.events.filter(x=>x.bar>bar&&x.bar<=bar+len&&(x.type==="mixStart"||x.type==="bandSwitch"||(x.type==="break"&&["bridge","breakdown"].includes(x.btype)))).map(x=>x.bar);
@@ -1909,6 +2004,7 @@ function updatePanel(){
     const on=special?ph===special:(ph==="chill"?chOn:(!chOn&&cur&&cur.phase===ph));
     return `<span class="${on?"on":""}${ph==="chill"?" ch":""}${ph==="opening"||ph==="closing"?" oc":""}">${phJa(ph,C.band)}</span>`;}).join("");
   $("upinfo").textContent="上モノ："+eng.decks.filter(d=>d.upOn&&d.arr.init).map(d=>`${C.ja(d.style)}＝${((d.arr.chillPatch||patchList(d)[d.arr.variant])||{}).ja}・${SECTION_JA[d.arr.section]}`).join(" ／ ")
+    +(eng.jazz&&eng.jazz.on?` ／ ジャジー（エレピ ${eng.jazz.last||(eng.jazz.m11?"m11":"m9")}・${eng.jazz.ride?"ライド":"シェイカー"}${eng.jazz.walk?"・ウォーキングベース":""}・あと${Math.max(0,eng.jazz.end-b)}小節）`:"")
     +(eng.chip&&eng.chip.on?` ／ チップチューン（${eng.chip.mode==="arp"?"アルペジオ":"リード"}・あと${Math.max(0,eng.chip.end-b)}小節）`:"");
   if(M){const pr=Math.max(0,Math.min(1,(b-M.m)/M.L));$("mixbar").style.width=(pr*100)+"%";
     $("mixinfo").textContent=b<M.m?`${M.m-b}小節後にミックス開始（${C.ja(M.from)} → ${C.ja(M.to)}、${M.L}小節）`:
