@@ -944,7 +944,7 @@ Object.assign(Engine.prototype,{
       this.upVerb.buffer=b;}
     this.verbRet=c.createGain();this.verbRet.gain.value=0.9;this.upVerb.connect(this.verbRet).connect(this.bus.stab);
     this.upDist=c.createWaveShaper();this.upDist.curve=Engine.curve(2048,x=>Math.tanh(4*x)/Math.tanh(4));this.upDist.oversample="2x";
-    this.organWave=c.createPeriodicWave(new Float32Array(10),new Float32Array([0,1,0.85,0.55,0.5,0,0.38,0,0.3,0.12]));
+    this.organWave=c.createPeriodicWave(new Float32Array(9),new Float32Array([0,1,0.72,0.5,0.3,0.1,0.14,0,0.05]));   // v19: drawbar-like (8' 4' 2 2/3' 2'), soft top
     this.upG={};this.upEnv={};this.upHpEnv={};
     for(const st of UPSTYLES){const M=UPMIX[st];
       // per-style layer: gain (crossfade) -> highpass (DJ filter sweep) -> dry / delay / reverb
@@ -974,8 +974,8 @@ Object.assign(Engine.prototype,{
     if(!A.init)return deck.band==="b160"||deck.band==="bchill"?0:this.upperClassic(st,t,s,deck);
     if(A.section==="off")return 0;
     const PL=patchList(deck),pv=A.chillPatch||PL[A.variant]||PL[0];
-    if(pv.n==="classic"){if(A.section==="sparse"&&s!==0&&r()<0.5)return 0;return this.upperClassic(st,t,s,deck);}
-    if(r()>Math.min(1,0.55+1.2*this.cond.p.density))return 0;
+    if(pv.n==="classic"){if(A.section==="sparse")return this.playMotif(st,t,s,deck,CLASSIC_SPARSE);return this.upperClassic(st,t,s,deck);}   // v19
+    if(A.section!=="sparse"&&r()>Math.min(1,0.55+1.2*this.cond.p.density))return 0;
     return this.playMotif(st,t,s,deck,pv);},
   upperClassic(st,t,s,deck){const P=deck.pat,U=P.U,r=this.rand,v=this.effVar(),root=57+offOf(deck.key!=null?deck.key:S.key),out=this.upG[st],s16=this.s16;
     const cs=deck.harm&&deck.harm.upFollow?this.chordOf(deck).semi:0,cr=root+(cs>6?cs-12:cs);
@@ -991,7 +991,7 @@ Object.assign(Engine.prototype,{
       return h;}
     if(st==="groove"){const G=U.groove,sw=s%2===1?s16*Math.max(0.2,this.cond.p.swing*0.3):0;let h=0;
       const gs=deck.harm?this.chordOf(deck).semi:G.prog[this.bar%4],cr=root+(deck.harm?(gs>6?gs-12:gs):gs);   // v18: organ follows the deck's chord (was its own 4-bar loop)
-      if(G.organ.has(s)){this.organ(t+sw,cr,s%4===2?1:0.75,deck.harm?this.stabIvs(deck,gs):undefined);h=1;}
+      if(G.organ.has(s)){this.organVoiced(t+sw,deck,s%4===2?1:0.75);h=1;}
       if(G.vox.has(s)&&r()<G.voxP){this.vox(t+sw,root+12+MINOR_PENT[Math.floor(r()*5)]);h=Math.max(h,0.7);}
       return h;}
     if(st==="tribal"){const T=U.tribal,g=this.step;let h=0;
@@ -1038,12 +1038,28 @@ Object.assign(Engine.prototype,{
     mod.connect(mi).connect(car.frequency);hp.type="highpass";hp.frequency.value=900;
     g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.06,t+0.002);g.gain.setTargetAtTime(0,t+0.003,0.045);
     car.connect(hp).connect(g).connect(dest);car.start(t);mod.start(t);car.stop(t+0.45);mod.stop(t+0.45);this.free(car,hp,g,mi);this.free(mod);},
-  organ(t,root,vel,ivs=[0,3,7,10]){const c=this.ctx,{k}=this.upCut(),lp=c.createBiquadFilter(),g=c.createGain(),len=0.1;
-    lp.type="lowpass";lp.frequency.value=Math.min(8000,1800*k);lp.Q.value=0.7;
-    const pk=0.05*vel;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(pk,t+0.004);g.gain.setValueAtTime(pk*0.85,t+len);g.gain.setTargetAtTime(0,t+len,0.018);
-    lp.connect(g).connect(this.upG.groove);const os=[];
-    for(const iv of ivs){const o=c.createOscillator();o.setPeriodicWave(this.organWave);o.frequency.value=mtof(root+iv);o.detune.value=(this.rand()-0.5)*6;o.connect(lp);o.start(t);o.stop(t+len+0.2);os.push(o);this.free(o);}
-    os[0].addEventListener("ended",()=>{lp.disconnect();g.disconnect();});},
+  // v19: M1 / 90s house-techno organ: two detuned drawbar oscillators per note (chorus), key click, percussive decay, band-limited lowpass,
+  // articulation per section: stab (short), leslie (medium + rotary tremolo / vibrato), swell (soft attack, slow tremolo)
+  organ(t,root,vel,ivs=[0,3,7,10],art="stab"){const c=this.ctx,{k}=this.upCut(),r=this.rand,A=ORGAN_ART[art]||ORGAN_ART.stab,out=this.upG.groove;
+    const lp=c.createBiquadFilter(),g=c.createGain();lp.type="lowpass";lp.Q.value=0.5;
+    lp.frequency.setValueAtTime(Math.min(7000,A.cut*k*1.7),t);lp.frequency.setTargetAtTime(Math.min(5200,A.cut*k),t+A.a,0.06);
+    const pk=0.052*(A.lvl||1)*vel*Math.sqrt(3/ivs.length),end=t+A.len,stopT=end+A.rel*5+0.05;
+    g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(pk,t+A.a);g.gain.setTargetAtTime(pk*A.sus,t+A.a,A.dec);g.gain.setTargetAtTime(0,end,A.rel);
+    let tg=null,vib=null;
+    if(A.trem){tg=c.createGain();tg.gain.value=1-A.td;const l=c.createOscillator(),ld=c.createGain();l.frequency.value=A.trem*(0.94+0.12*r());ld.gain.value=A.td;l.connect(ld).connect(tg.gain);
+      vib=c.createGain();vib.gain.value=A.vib||0;l.connect(vib);l.start(t);l.stop(stopT);this.free(l,ld,vib);}
+    lp.connect(g);if(tg)g.connect(tg).connect(out);else g.connect(out);
+    const os=[];
+    for(const iv of ivs){const f=mtof(root+iv);for(const det of [-6,6]){const o=c.createOscillator(),og=c.createGain();o.setPeriodicWave(this.organWave);o.frequency.value=f;o.detune.value=det+(r()-0.5)*3;
+      og.gain.value=0.5;if(vib)vib.connect(o.detune);o.connect(og).connect(lp);o.start(t);o.stop(stopT);os.push(o);this.free(o,og);}}
+    if(A.click){const n=c.createBufferSource(),bp=c.createBiquadFilter(),cg=c.createGain();n.buffer=this.noise;bp.type="bandpass";bp.frequency.value=2600;bp.Q.value=0.8;
+      cg.gain.setValueAtTime(pk*A.click,t);cg.gain.setTargetAtTime(0,t+0.0015,0.0035);n.connect(bp).connect(cg).connect(out);n.start(t,r());n.stop(t+0.04);this.free(n,bp,cg);}
+    os[0].addEventListener("ended",()=>{lp.disconnect();g.disconnect();if(tg)tg.disconnect();});},
+  // chord voicing with voice leading: chord tones (triad + m7) placed round a slowly drifting centre (inversions), sometimes thinned to 3 notes
+  organVoiced(t,deck,vel){const A=deck.arr,r=this.rand,root=57+offOf(deck.key!=null?deck.key:S.key),{semi}=this.chordOf(deck);
+    if(A.orgSemi!==semi){A.orgC=Math.max(1,Math.min(9,(A.orgC??(3+Math.floor(r()*4)))+[-2,-1,0,1,2][Math.floor(r()*5)]));A.orgSemi=semi;A.orgThin=r()<0.3;}
+    let v=[...new Set(this.voiceNear(this.stabIvs(deck,semi).map(x=>x+semi),A.orgC))];if(A.orgThin&&v.length>3)v.splice(1+Math.floor(r()*(v.length-2)),1);
+    this.organ(t,root,vel,v,A.orgArt||"stab");},
   vox(t,midi,dest=this.upG.groove,len=0.13){const c=this.ctx,o=c.createOscillator(),g=c.createGain(),f=mtof(midi),V=VOWELS[Math.floor(this.rand()*VOWELS.length)];
     o.type="sawtooth";o.frequency.setValueAtTime(f*1.03,t);o.frequency.setTargetAtTime(f,t,0.02);
     g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.5,t+0.006);g.gain.setValueAtTime(0.45,t+len);g.gain.setTargetAtTime(0,t+len,0.02);
@@ -1206,6 +1222,11 @@ const PATCHESCH={
     {n:"chillkeys",ja:"チル・キー（ローズ風）",osc:[["triangle",0,.6],["sine",0,.5]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1500,q:.7,env:1.4,dec:.3},a:{a:.006,d:.6,s:.15,r:.35},lvl:.07,gate:1.6},
     {n:"dubstab",ja:"ダブ・スタブ（こもり）",osc:[["sawtooth",-6,.5],["sawtooth",6,.5]],chord:[0,3,7,10],f:{type:"lowpass",cut:600,q:3,env:3,dec:.1},a:{a:.002,d:.2,s:0,r:.06},lvl:.065,gate:.6}]};
 const patchList=d=>(d.band==="bchill"?PATCHESCH:PATCHES)[d.style];
+const ORGAN_ART={stab:{a:.002,dec:.05,sus:.22,len:.15,rel:.045,cut:3000,click:.8,lvl:.8},          // lvl: matched to the other groove 上モノ (≈ −37 dB RMS solo)
+  leslie:{a:.004,dec:.1,sus:.45,len:.26,rel:.07,cut:2600,click:.45,trem:6.2,td:.22,vib:5,lvl:.6},
+  swell:{a:.06,dec:.25,sus:.7,len:.42,rel:.14,cut:2100,click:0,trem:4.4,td:.16,vib:3,lvl:.38}};
+const CLASSIC_SPARSE={n:"classic",special:"classic"};
+const ORGAN_ART_JA={stab:"スタブ",leslie:"ロータリー",swell:"スウェル"};
 const SECTION_JA={off:"お休み",sparse:"まばら",main:"メイン",intense:"強め"};
 const CHILL_PATCHES=[
   {n:"chillkeys",ja:"チル・キー（ローズ風）",osc:[["triangle",0,.6],["sine",0,.5]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1500,q:.7,env:1.4,dec:.3},a:{a:.006,d:.6,s:.15,r:.35},lvl:.075,gate:1.6},
@@ -1266,10 +1287,11 @@ Object.assign(Engine.prototype,{
     return Object.keys(W).length?+pickW(r,W):k;},
   // per phrase: patch variant (often kept so 16 bars stay related), section every 8 bars, motif development every 4 bars
   arrangeUpper(d){const A=d.arr,r=this.rand,P=patchList(d),en=this.cond.p.energy,bar=this.bar;
-    if(!A.init){A.init=true;A.variant=d.id===0?0:Math.floor(r()*P.length);A.motif=this.newMotif(d);A.section=d.id===0?"sparse":"main";A.lastSec=A.section;return;}
+    if(!A.init){A.init=true;A.variant=d.id===0&&d.style!=="groove"?0:this.pickVariant(d,P,-1);A.orgArt="stab";A.motif=this.newMotif(d);A.section=d.id===0?"sparse":"main";A.lastSec=A.section;return;}
     if(bar%32===0&&d.harm&&r()<(d.band==="bchill"?0.6:0.35))d.harm.prog=this.pickProg(d);          // harmony evolves slowly (only on a 32-bar line, where every progression is on the i chord)
     if(bar%16===0){
-      if(r()<0.6&&P.length>1){let v;do{v=Math.floor(r()*P.length);}while(v===A.variant);A.variant=v;const x=r();if(x<0.3)A.motif=this.newMotif(d);else if(x<0.75)A.motif=this.deriveMotif(d,A.motif);}
+      const orgNow=d.style==="groove"&&(P[A.variant]||{}).n==="classic";   // v19: the organ never stays past one 16-bar line
+      if((r()<0.6||orgNow)&&P.length>1){A.variant=this.pickVariant(d,P,A.variant);const x=r();if(x<0.3)A.motif=this.newMotif(d);else if(x<0.75)A.motif=this.deriveMotif(d,A.motif);}
       else if(r()<0.35)A.motif=this.deriveMotif(d,A.motif);
       A.layer2=r()<0.4?["pad","noise","fx"][Math.floor(r()*3)]:null;
       if(A.layer2&&d.upOn&&this.melOK(d))this.upperLayer2(d,A.layer2,this.lastT||0);}
@@ -1278,9 +1300,12 @@ Object.assign(Engine.prototype,{
       if(want&&!A.chillPatch)A.chillPatch=CHILL_PATCHES[Math.floor(r()*CHILL_PATCHES.length)];else if(!want)A.chillPatch=null;
       if(A.chillPatch){A.section=r()<0.6?"main":"sparse";A.lastSec=A.section;if(r()<0.5)A.motif=this.deriveMotif(d,A.motif);return;}}
     if(bar%8===0){const w={off:A.lastSec==="off"?0:(.08+(en<.45?.08:0)),sparse:.28,main:.42,intense:.06+Math.max(0,en-.55)*.7};
-      let x=r()*Object.values(w).reduce((a,b)=>a+b,0);for(const [k,v] of Object.entries(w)){x-=v;if(x<=0){A.section=k;break;}}A.lastSec=A.section;}
+      let x=r()*Object.values(w).reduce((a,b)=>a+b,0);for(const [k,v] of Object.entries(w)){x-=v;if(x<=0){A.section=k;break;}}A.lastSec=A.section;
+      A.orgArt=pickW(r,A.section==="sparse"?{swell:.4,leslie:.4,stab:.2}:A.section==="intense"?{stab:.7,leslie:.3}:{stab:.55,leslie:.45});}
     else if(bar%4===0)this.developMotif(A.motif,d);},
   // ----- v13 motifs: 2-bar question/answer + a development bar, arranged in an 8-bar form; rhythm cells generated per style -----
+  pickVariant(d,P,cur){const w=P.map((p,i)=>i===cur?0:(d.style==="groove"&&p.n==="classic"?0.15:1));let x=this.rand()*w.reduce((a,b)=>a+b,0);   // v19: the organ patch is rarer
+    for(let i=0;i<w.length;i++){x-=w[i];if(x<=0&&w[i])return i;}return w.findIndex(v=>v>0);},
   genCell(st,n){const r=this.rand;if(r()<0.2){const c=CELLS[Math.floor(r()*CELLS.length)];if(c.length>=Math.min(2,n))return c.slice();}
     const W=(STEP_W[st]||STEP_W.minimal).slice(),out=[];
     for(let k=0;k<n;k++){let x=r()*W.reduce((a,b)=>a+b,0);let i=0;for(;i<15;i++){x-=W[i];if(x<=0)break;}if(!W[i])break;out.push(i);W[i]=0;if(i>0)W[i-1]*=0.5;if(i<15)W[i+1]*=0.5;}
@@ -1325,6 +1350,27 @@ Object.assign(Engine.prototype,{
       case 8:{const i=1+Math.floor(r()*7);M.form[i]=["A","B","C","-"][Math.floor(r()*(i%2?4:3))];break;}  // form: another bar answers / rests
       case 9:M.bars.C=this.varyBar(M.bars.A,L);break;}                                              // new development bar
     M.ops.push(op);},
+  // ----- v19 sparse (まばら) sections: the motif's own rhythm, thinned by a seeded hash (so bars differ but stay related), call / response gaps
+  // in 2-bar pairs, density breathing over 8 / 16 bars, off-beat anticipations and phrase-end pickups
+  newSparse(ch){const r=this.rand,k=ch?0.65:1;return {seed:(r()*4294967296)>>>0,b0:this.bar,per:r()<0.5?8:16,lo:k*(0.3+0.15*r()),hi:k*(0.65+0.25*r()),ant:0.12+0.16*r(),call:r()<0.5};},   // chill: thinner
+  sparseNotes(A,M,N){const bar=this.bar;if(!A.sp||bar-A.spLast>1)A.sp=this.newSparse(this.low.band==="bchill"||!!A.chillPatch);A.spLast=bar;const sp=A.sp;
+    const h=(a,b)=>{let x=(sp.seed^Math.imul(M.id+1,0x9e3779b1)^Math.imul(bar+7,0x85ebca6b)^Math.imul(a*31+b+1,0xc2b2ae35))>>>0;x^=x>>>15;x=Math.imul(x,0x2c1b3c6d)>>>0;x^=x>>>12;x=Math.imul(x,0x297a2d39)>>>0;x^=x>>>15;return (x>>>0)/4294967296;};
+    const rel=bar-sp.b0,ph=((rel%sp.per)+sp.per)%sp.per,dens=sp.lo+(sp.hi-sp.lo)*(0.5-0.5*Math.cos(2*Math.PI*ph/sp.per)),resp=((rel&1)===1)!==sp.call,out=[];
+    N.forEach((n,i)=>{const front=n.s<8;
+      if(resp?(front&&h(i,1)<0.7):(!front&&h(i,2)<0.5))return;           // call keeps the front of the bar, the answer the back
+      if(out.length&&h(i,3)>dens)return;                                  // breathing density (the first kept note always plays)
+      let es=n.s;if(es>0&&es%4===0&&h(i,4)<sp.ant)es-=1;                  // off-beat anticipation
+      out.push({n,s:es,i});});
+    if((bar%8===7||ph===sp.per-1)&&h(0,5)<0.65&&!out.some(o=>o.s>=12)){const last=(out.length?out[out.length-1].n:N[N.length-1])||{deg:0,oct:0};
+      const s1=h(0,6)<0.5?14:15;out.push({n:{s:s1,deg:(last.deg||0)+(h(0,7)<0.5?1:-1),oct:last.oct||0,vel:0.7,acc:false,len:1},s:s1,i:N.length});}   // pickup into the next phrase
+    return out;},
+  // classic patches in a sparse section: the style's own voice on the motif's hits
+  classicHit(st,t,midi,vel,deck,i){const out=this.upG[st],root=57+offOf(deck.key!=null?deck.key:S.key),{semi}=this.chordOf(deck),cr=root+(semi>6?semi-12:semi);
+    if(st==="groove"){this.organVoiced(t,deck,0.8+0.25*Math.min(1,vel));if(i>0&&this.rand()<0.12)this.vox(t+this.s16,midi+12);return;}
+    if(st==="minimal"){this.stab(t,out,cr,this.stabIvs(deck,semi));return;}
+    if(st==="hard"){this.hardStab(t,cr,false);return;}
+    if(st==="tribal"){this.marimba(t,midi+12,0.9*Math.min(1,vel),(i%2?0.35:-0.35));return;}
+    this.pulse(t,midi);},
   upperLayer2(d,kind,t){const c=this.ctx,bd=16*this.s16,root=57+keyOff(),out=this.upG[d.style];
     if(kind==="pad"){const rt=57+offOf(d.key!=null?d.key:S.key);let b=0;      // v13: one segment per chord of the deck's progression (root, fifth below, third)
       const bEnd=Math.min(8,this.tonalEnd(d));
@@ -1363,8 +1409,8 @@ Object.assign(Engine.prototype,{
     if(pv.special==="offstab"){if(s%4!==2||(A.section==="sparse"&&r()<0.5))return 0;     // hardcore off-beat stab, pitch follows the motif
       const NN=N.length?N:M.bars.A;if(!NN.length)return 0;const n=NN[(s>>2)%NN.length],midi=toMidi(n.deg+M.tr+ci,0);
       this.synth(t,midi,(s===14?1:0.85)*(0.9+0.2*r()),s16*(pv.gate||1)*1.6,{...pv,fenv:M.fenv*(0.85+0.3*r())},out);if(this.debug)this.upLog.push([this.bar,s,st,pv.n,midi,deck.id,M.id]);return 1;}
-    for(let i=0;i<N.length;i++){const n=N[i];if(n.s!==s)continue;
-      if(A.section==="sparse"&&(r()<0.45||(letter!=="A"&&i>0)))continue;
+    const SN=A.section==="sparse"?this.sparseNotes(A,M,N):N.map((n,i)=>({n,s:n.s,i}));   // v19: seed-driven sparse rhythm (was: random 45 % drop)
+    for(const sn of SN){const n=sn.n,i=sn.i;if(sn.s!==s)continue;
       let midi=toMidi(n.deg+M.tr+ci,n.oct);const vel=n.vel*(n.acc?1.25:1)*(0.88+0.24*r()),dur=s16*(pv.gate||1)*M.gate*1.6*(n.len||1)*(0.8+0.4*r()),fenv=M.fenv*(0.85+0.3*r());
       {const sp=pv.special,ed=sp==="chant"?2.5*s16:sp==="flute"?(i===0?6*s16:0.25):sp==="kalimba"?0.25:sp==="vox"?0.13:sp==="bleep"?0.1:sp==="acid"?0.92*s16:dur;
         if(isCh||(s%4===0&&ed>1.2*s16)||(ed>2.5*s16&&this.harsh(midi,root,pcs)))midi=this.snapChord(midi,root,pcs);}   // v18: chord tones on strong beats; long weak-step notes only lose harsh tones
@@ -1375,6 +1421,7 @@ Object.assign(Engine.prototype,{
         case "kalimba":this.marimba(t,midi+12,vel,(i%2?0.35:-0.35),true);break;
         case "flute":if(i===0)this.flute(t,midi+12,s16*6);else this.marimba(t,midi+12,0.5*vel,0.2,true);break;
         case "bleep":this.bleep(t,midi+24);break;
+        case "classic":this.classicHit(st,t,midi,vel,deck,i);break;
         default:{const P=voiced(midi);this.synth(t,midi,vel,dur,{...P,fenv},out);
           if(A.section==="intense"&&n.acc&&r()<0.5)this.synth(t+s16/2,midi+12,0.5*vel,dur*0.6,{...P,fenv},out);}}
       if(this.debug)this.upLog.push([this.bar,s,st,pv.n,midi,deck.id,M.id]);h=Math.max(h,n.acc?1:0.75);}
