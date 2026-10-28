@@ -1516,22 +1516,27 @@ for(const k in ODD_PATS){const P=ODD_PATS[k];P.span=P.g.reduce((a,b)=>a+b,0);P.s
 const ODD_W={bchill:{g332:2,g33334:1.5,g43x4:1,g4534:.6},b120:{g33334:1.2,g332:1.2,g43432:1,g323323:.8,g4534:.7,g43x4:1,g3x9:.6},
   b140:{g33334:1.3,g332:.8,g43432:1.2,g323323:1,g4534:.6,g43x4:.8,g3x9:1}};
 const ODD_P={warm:.15,build:.7,peak:.6,release:.2};   // chance per free 16-bar line (after the cooldown), by set phase
-const ODD_BAND={b120:1,b140:1,bchill:.7};
+const ODD_BAND={b120:1,b140:1,bchill:1};
+const ODD_SEAM=8,ODD_AFTER_MIX=16;   // v25b: accents start only with >= 8 clear bars after the segment (no mix / band move) and >= 16 bars after the last two-deck bar
 Object.assign(Engine.prototype,{
-  initOdd(){const c=this.ctx;this.odd={on:false,fading:false,cool:0,start:-1,end:-1};this.oddSegs=[];this.oddLog=[];this.odr=mulberry32((this.seed||1)^0x0dd25);
+  initOdd(){const c=this.ctx;this.odd={on:false,fading:false,cool:0,start:-1,end:-1,mixSeen:-99};this.oddSegs=[];this.oddLog=[];this.odr=mulberry32((this.seed||1)^0x0dd25);
     this.oddIn=c.createGain();this.oddLp=c.createBiquadFilter();this.oddLp.type="lowpass";this.oddLp.frequency.value=1200;this.oddLp.Q.value=0.6;
     this.oddFade=c.createGain();this.oddFade.gain.value=0;this.oddIn.connect(this.oddLp).connect(this.oddFade);
     const dry=c.createGain();dry.gain.value=0.9;this.oddFade.connect(dry).connect(this.bus.stab);           // upper bus (kick pump / ducking)
     const vs=c.createGain();vs.gain.value=0.16;this.oddFade.connect(vs).connect(this.upVerb);
     const ds=c.createGain();ds.gain.value=0.12;this.oddFade.connect(ds).connect(this.send);},
   oddBar(t){const O=this.odd,bar=this.bar,cd=this.cond,bd=16*this.s16,D=this.drop,r=this.odr;
+    if(this.decks.length>1||(cd.mix&&cd.mix.state!=="planned")||cd.pendingBand)O.mixSeen=bar;
+    const seam=b1=>cd.events.filter(x=>x.bar>=bar&&x.bar<=b1&&["mixStart","bandSwitch"].includes(x.type)).map(x=>x.bar);   // 曲のつなぎ目: deck mixes / band moves
     if(O.on&&!this.decks.includes(O.deck))O.deck=this.low;
+    if(O.on&&!O.fading){const nx=seam(O.end+3);if(nx.length){const m=Math.min(...nx),e2=Math.max(bar+1,Math.min(m-2,Math.max(O.start+6,m-4)));if(e2<O.end)O.end=e2;}}   // a mix planned later: fade out >= 2 (ideally 4) bars before it
     if(O.on){const stop=!!(cd.closing||this.closed||(cd.chill&&cd.chill.state!=="planned")||cd.pendingBand||this.decks.length>1||this.chillAmt>0.1||(this.orn&&this.orn.strip)||(D.active&&["bridge","intro","outro","breakdown"].includes(D.type)));
+      if(stop){const sg=this.oddSegs[this.oddSegs.length-1];if(sg)sg[6]=cd.closing||this.closed?"close":cd.chill?"chill":cd.pendingBand?"band":this.decks.length>1?"mix":this.chillAmt>0.1?"chillAmt":this.orn&&this.orn.strip?"strip":"break:"+D.type;}
       if(stop||bar>=O.end)this.oddOff(t,stop?bd*0.25:bd*0.3);else if(bar===O.end-1)this.oddFadeOut(t,bd);
       return;}
     const force=this.oddForceBar!=null&&bar===this.oddForceBar;
     if(!force){
-      if(bar%16!==0||bar<32||bar<O.cool||cd.closing||cd.opening||this.closed||cd.chill||cd.pendingBand||(cd.mix&&cd.mix.state!=="planned")||this.decks.length>1||this.chillAmt>0.05||D.active)return;
+      if(bar%16!==0||bar<32||bar<O.cool||bar<(O.mixSeen??-99)+ODD_AFTER_MIX||cd.closing||cd.opening||this.closed||cd.chill||cd.pendingBand||(cd.mix&&cd.mix.state!=="planned")||this.decks.length>1||this.chillAmt>0.05||D.active)return;
       if(this.flav||(this.low.style==="broken"&&this.low.band!=="bchill"))return;   // only over a straight four-on-the-floor
       if((this.chip&&this.chip.on)||(this.jazz&&this.jazz.on)||this.jzPlan||bar<this.jazz.end+16||bar<this.chip.end+8)return;
       const OR=this.orn;if(!OR||OR.strip||OR.stripEnded===bar||!OR.plan||OR.plan.size===0)return;    // stripped stays stripped; strip in / out lines change nothing else
@@ -1539,7 +1544,8 @@ Object.assign(Engine.prototype,{
       if(r()>(ODD_P[ph]||0)*(ODD_BAND[this.low.band]||0))return;}
     let len=force&&this.oddForceLen?this.oddForceLen:(r()<0.5?8:16);
     if(!force){const nx=cd.events.filter(x=>x.bar>bar&&x.bar<=bar+len+1&&["mixStart","bandSwitch","break","drop","chillIn","closeIn"].includes(x.type)).map(x=>x.bar);
-      if(nx.length){len=Math.min(...nx)-bar;if(len<8)return;len=len>=16?16:8;}}      // never cut short by a planned mix / break
+      if(nx.length){len=Math.min(...nx)-bar;if(len<8)return;len=len>=16?16:8;}
+      const sm=seam(bar+len+ODD_SEAM);if(sm.length){len=Math.min(...sm)-ODD_SEAM-bar;if(len<8)return;len=len>=16?16:8;}}   // never cut short by a planned mix / break; clear of the seams
     this.oddOn(t,len,force?this.oddForcePat:null);},
   oddOn(t,len,pat){const O=this.odd,d=this.low,r=this.odr,bd=16*this.s16,ch=d.band==="bchill",cd=this.cond;
     if(!pat||!ODD_PATS[pat])pat=pickW(r,ODD_W[d.band]||ODD_W.b120);
