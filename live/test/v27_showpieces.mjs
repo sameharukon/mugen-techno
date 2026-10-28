@@ -93,11 +93,12 @@ for(const band of ['b120','b140','bchill']){const T={bars:0,show:{spastik:0,bell
   const ph={};for(const k in T.ph)ph[k]={spastik:r3(T.ph[k].spastik/T.ph[k].bars),bells:r3(T.ph[k].bells/T.ph[k].bars),bars:T.ph[k].bars};
   const lens=T.segs.map(s=>s[1]-s[0]),lensN=T.segs.filter(s=>s[6]!=="close").map(s=>s[1]-s[0]);
   const res=RES[band]={share:{spastik:r3(T.show.spastik/T.bars),bells:r3(T.show.bells/T.bars),odd:r3(T.odd/T.bars)},segments:{spastik:T.segs.filter(s=>s[3]==='spastik').length,bells:T.segs.filter(s=>s[3]==='bells').length},
-    perSet:r3(T.segs.length/NS),meanLen:r3(mean(lens)),minLen:lensN.length?Math.min(...lensN):0,maxLen:lens.length?Math.max(...lens):0,starts16:T.segs.every(s=>s[0]%16===0),
+    perSet:r3(T.segs.length/NS),meanLen:r3(mean(lens)),minLen:lensN.length?Math.min(...lensN):0,   // 0 = no segment that ran its course (closing cuts are exempt)
+    maxLen:lens.length?Math.max(...lens):0,starts16:T.segs.every(s=>s[0]%16===0),
     startPhase:T.segs.reduce((o,s)=>(o[s[3]+':'+s[4]]=(o[s[3]+':'+s[4]]||0)+1,o),{}),byPhase:ph,minGapBetweenShows:T.gapSame,minGapToOdd:T.oddGap,oddOverlapBars:T.oddClash,
     clutterMax:Math.max(0,...T.clutter),fillBars:T.fills,bassInSpastikBody:T.bassBody,kickMiss:T.kickMiss,violations:T.viol.length,seamBad:T.seam.length,cancelledPre:T.cancels,bell:T.bell};
   const tot=res.share.spastik+res.share.bells;
-  const ok=band==='bchill'?T.segs.length===0:(res.starts16&&res.minLen>=6&&res.maxLen<=16&&T.oddClash===0&&T.oddGap>=16&&res.clutterMax===0&&res.fillBars===0&&res.bassInSpastikBody===0&&res.kickMiss===0&&res.violations===0&&res.seamBad===0&&
+  const ok=band==='bchill'?T.segs.length===0:(res.starts16&&(res.minLen>=6||!lensN.length)&&res.maxLen<=16&&T.oddClash===0&&T.oddGap>=16&&res.clutterMax===0&&res.fillBars===0&&res.bassInSpastikBody===0&&res.kickMiss===0&&res.violations===0&&res.seamBad===0&&
     T.bell.offMinor===0&&T.bell.harsh===0&&(T.segs.length===0||T.gapSame>=48)&&tot<0.12&&(band!=='b140'||(res.segments.spastik>0&&res.segments.bells>0&&tot>0.01)));
   if(!ok)fails.push('B '+band);console.log(ok?'ok  ':'FAIL','B',band,JSON.stringify(res));if(T.seam.length)console.log('  seam',JSON.stringify(T.seam.slice(0,6)));if(T.viol.length)console.log('  viol',JSON.stringify(T.viol.slice(0,6)));}
 // ---- C) offline audio

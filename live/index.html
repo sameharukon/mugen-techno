@@ -1115,16 +1115,18 @@ Engine.prototype.drumsChill=function(d,t,tsw,s,ev,v,M,dn,ca,cm){const P=d.pat,r=
 const PHRYG=[0,1,3,5,7,8,10],DORIAN=[0,2,3,5,7,9,10];
 const UPSTYLES=["minimal","hard","groove","tribal","broken"];
 // per-style routing: dry / ping-pong delay send / reverb send, and an output trim (rough loudness match)
-const UPMIX={minimal:{dry:1,dly:1,verb:0.12,lvl:1.4},hard:{dry:1,dly:0.35,verb:0.25,lvl:0.75},
-  groove:{dry:1,dly:0.6,verb:0.15,lvl:1.0},tribal:{dry:0.85,dly:0.45,verb:0.7,lvl:0.65},broken:{dry:1,dly:0.8,verb:0.2,lvl:0.75}};
+// v28: drier melodic sends (the echoes / tails smeared lines into "ぽわぽわ" and their repeats sounded like stray notes)
+const UPMIX={minimal:{dry:1,dly:0.6,verb:0.1,lvl:1.4},hard:{dry:1,dly:0.28,verb:0.2,lvl:0.75},
+  groove:{dry:1,dly:0.42,verb:0.12,lvl:1.0},tribal:{dry:0.9,dly:0.32,verb:0.42,lvl:0.65},broken:{dry:1,dly:0.5,verb:0.16,lvl:0.75}};
 // chill band: more dub delay / reverb on the 上モノ
-const UPMIX_BAND={bchill:{groove:{dly:1.4,verb:0.5},minimal:{dly:1.2,verb:0.4},hard:{dly:0.9,verb:1.0},tribal:{dly:0.7,verb:0.8},broken:{dly:1.0,verb:0.5}}};
+const UPMIX_BAND={bchill:{groove:{dly:0.9,verb:0.34},minimal:{dly:0.8,verb:0.28},hard:{dly:0.6,verb:0.6},tribal:{dly:0.5,verb:0.55},broken:{dly:0.65,verb:0.34}}};
 // per-kick-style master trim in dB (balances overall loudness across styles)
 const STYLE_TRIM_DB={minimal:0,hard:-4.5,groove:2.2,tribal:-0.3,broken:2.0};
 // the 120-band industrial kick is milder (less saturation) than the 140 hard-techno kick -> smaller trim
 const TRIM160_DB={minimal:-7.5,groove:-7.5,tribal:-7.5,broken:-5.2,hard:-5.2};   // v12: クロスブリード +0.8 dB (quieter kick, kLvl 0.8)
 const TRIMCH_DB={minimal:1,groove:1,tribal:1,broken:4.5,hard:2.6};
 const trimDb=(st,band=S.band)=>band==="bchill"?TRIMCH_DB[st]:band==="b160"?TRIM160_DB[st]:(band==="b120"&&st==="hard"?-2.5:STYLE_TRIM_DB[st]);
+const FLUTE={att:0.014,vib:3,rel:0.22};   // v28: quicker breath-in, near-straight pitch, shorter tail (was 0.18 s / 5 cents / 0.35 s)
 const VOWELS=[[800,1150,2900],[450,800,2830],[400,1600,2700],[300,2000,2900],[350,600,2700]];
 
 Object.assign(Patterns.prototype,{
@@ -1136,21 +1138,23 @@ Object.assign(Patterns.prototype,{
       broken:{arp:[0,2,4,7,5,4,2,1],mask:[1,0,1,1,0,1,1,0],resp:5,bleep:new Set([3,11,14])}};
     this.rollAcid();},
   rollAcid(){const r=this.r,A=this.U.hard.acid;
-    for(let s=0;s<16;s++) A[s]=r()<0.55?{deg:r()<0.45?0:Math.floor(r()*PHRYG.length),oct:r()<0.25?1:0,acc:r()<0.3,slide:r()<0.22}:null;},
+    for(let s=0;s<16;s++) A[s]=r()<0.55?{deg:r()<0.45?0:Math.floor(r()*PHRYG.length),oct:r()<0.12?1:0,acc:r()<0.3,slide:r()<0.1}:null;},   // v28: fewer octave pops / slides
   mutateUpper(v){const r=this.r,U=this.U;
     const pick=(arr,k)=>{const s=new Set();for(let i=0;i<k;i++)s.add(arr[Math.floor(r()*arr.length)]);return s;};
     if(r()<v*0.6) U.hard.stab=pick([3,6,10,11,14],1+Math.floor(r()*2));
-    if(r()<v*0.5) this.rollAcid(); else if(r()<v) {const s=Math.floor(r()*16);U.hard.acid[s]=U.hard.acid[s]?null:{deg:Math.floor(r()*PHRYG.length),oct:0,acc:r()<0.4,slide:r()<0.3};}
+    if(r()<v*0.5) this.rollAcid(); else if(r()<v) {const s=Math.floor(r()*16),A=U.hard.acid;let nb=0;for(let k=1;k<16;k++){const x=A[(s+16-k)%16];if(x){nb=x.deg;break;}}
+      A[s]=A[s]?null:{deg:Math.max(0,nb+[-1,0,1][Math.floor(r()*3)]),oct:0,acc:r()<0.4,slide:r()<0.12};}   // v28: an added step is a neighbour of the line (was any degree)
     U.hard.fm=Math.min(0.4,Math.max(0.05,U.hard.fm+(r()-0.5)*0.2*v));
     if(r()<v*0.4) U.groove.organ=pick([2,3,5,7,10,11,13,14],3+Math.floor(r()*3));
     if(r()<v*0.4) U.groove.prog=[[0,0,5,0],[0,5,0,7],[0,0,7,5],[0,3,5,0]][Math.floor(r()*4)];
     if(r()<v*0.5) U.groove.vox=pick([3,7,11,14,15],1+Math.floor(r()*2));
     const T=U.tribal;
-    if(r()<v*0.6){const i=Math.floor(r()*T.arp.length);T.arp[i]=Math.floor(r()*6);}
+    if(r()<v*0.6){const i=Math.floor(r()*T.arp.length),A=T.arp,n=A.length,o=A[i];A[i]=Math.max(0,Math.min(5,o+(r()<0.5?-1:1)));
+      if(Math.abs(A[i]-A[(i+n-1)%n])>2||Math.abs(A[i]-A[(i+1)%n])>2)A[i]=o;}   // v28: one step moves, never a leap past a pentatonic 3rd to its neighbours (was a random note)
     if(r()<v*0.3){T.cycA=r()<0.7?3:4;T.cycB=r()<0.6?5:7;T.offB=Math.floor(r()*T.cycB);}
     T.pB=Math.min(0.8,Math.max(0.2,T.pB+(r()-0.5)*0.3*v));
     const B=U.broken;
-    if(r()<v*0.6){const i=Math.floor(r()*8);B.arp[i]=Math.floor(r()*8);}
+    if(r()<v*0.6){const i=Math.floor(r()*8);B.arp[i]=Math.max(0,Math.min(7,B.arp[i]+(r()<0.5?-1:1)));}
     if(r()<v*0.5){const i=Math.floor(r()*8);B.mask[i]^=1;}
     if(r()<v*0.3) B.resp=[5,3,7,-2][Math.floor(r()*4)];
     if(r()<v*0.4) B.bleep=pick([3,6,11,13,14,15],2+Math.floor(r()*2));
@@ -1194,6 +1198,8 @@ Object.assign(Engine.prototype,{
   applyUpMix(band,t){for(const st of UPSTYLES){const M={...UPMIX[st],...((UPMIX_BAND[band]||{})[st]||{})},S0=this.upSend[st];
       S0.dry.gain.setTargetAtTime(M.dry,t,0.5);S0.ds.gain.setTargetAtTime(M.dly,t,0.5);S0.vs.gain.setTargetAtTime(M.verb,t,0.5);}},
   upCut(){const l=this.lfo();return {l,k:Math.sqrt(this.cutHz()/490)*(0.55+0.9*l)};},
+  // v28: melodic voices follow the filter knob / dark intent / 16-bar sweep less deeply, and never close below a defined floor
+  upCutLine(){const l=this.lfo();return Math.max(0.75,Math.min(1.8,Math.sqrt(this.cutHz()/490)))*(0.8+0.4*l);},
   // 上モノ dispatcher: section (off / sparse / main / intense) × patch variant (classic palette or motif voice)
   upperStep(st,t,s,deck){const A=deck.arr,r=this.rand;
     if(!A.init)return deck.band==="b160"||deck.band==="bchill"?0:this.upperClassic(st,t,s,deck);
@@ -1203,33 +1209,33 @@ Object.assign(Engine.prototype,{
     if(A.section!=="sparse"&&r()>Math.min(1,0.55+1.2*this.cond.p.density))return 0;
     return this.playMotif(st,t,s,deck,pv);},
   upperClassic(st,t,s,deck){const P=deck.pat,U=P.U,r=this.rand,v=this.effVar(),root=57+offOf(deck.key!=null?deck.key:S.key),out=this.upG[st],s16=this.s16;
-    const cs=deck.harm&&deck.harm.upFollow?this.chordOf(deck).semi:0,cr=root+(cs>6?cs-12:cs);
+    const cs=deck.harm&&deck.harm.upFollow?this.chordOf(deck).semi:0,cr=root+(cs>6?cs-12:cs),pcs=this.chordPcs(deck),id=deck.id,LN=(k,m,lo,hi)=>this.lineNote(k+id,m,root,pcs,lo,hi,s);
     if(s!==0 && r()>Math.min(1,0.45+1.2*this.cond.p.density)) return 0;  // density thins the 上モノ
     if(st==="minimal"){const set=this.bar%2===0?P.stab:P.stabAlt;
       if(set.has(s)&&r()>0.08*v){this.stab(t,out,cr,this.stabIvs(deck,cs));return 1;}return 0;}
     if(st==="hard"){const H=U.hard;let h=0;
       if(s===0&&this.bar%4===0){this.drone(t,Math.min(4,this.tonalEnd(deck))*16*s16,{midi:root-24,type:"sawtooth",det:9,cut:220,q:3,lvl:0.06,att:1.2,rel:1.2,lfo:0.07,depth:120},out);h=0.3;}
-      if(H.stab.has(s)&&r()>0.1*v){this.hardStab(t,root,r()<0.3);h=1;}
-      if(H.acidOn){const a=H.acid[s];if(a){this.acid(t,root-12+PHRYG[a.deg]+12*a.oct,a.acc,a.slide);h=Math.max(h,0.7);}}
-      if(s%2===1&&r()<H.fm){this.fmHit(t,root+24+[0,1,7][Math.floor(r()*3)],out);h=Math.max(h,0.5);}
+      if(H.stab.has(s)&&r()>0.1*v){r();this.hardStab(t,root,false);h=1;}   // v28: no b2 cluster stab
+      if(H.acidOn){const a=H.acid[s];if(a){const sc=deck.scale||MODES.aeolian;this.acid(t,LN("acid",root-12+sc[a.deg%sc.length]+12*a.oct,root-12,root+5),a.acc,a.slide);h=Math.max(h,0.7);}}   // v28: the deck's scale (was phrygian always)
+      if(s%2===1&&r()<H.fm){this.fmHit(t,LN("fm",root+24+[0,7,12][Math.floor(r()*3)],root+19,root+36),out);h=Math.max(h,0.5);}
       if(s===14&&r()<0.25){this.hat(t,0.05,0.12,0.03,(r()-0.5),2500,out,"bandpass");}
       return h;}
     if(st==="groove"){const G=U.groove,sw=s%2===1?s16*Math.max(0.2,this.cond.p.swing*0.3):0;let h=0;
       const gs=deck.harm?this.chordOf(deck).semi:G.prog[this.bar%4],cr=root+(deck.harm?(gs>6?gs-12:gs):gs);   // v18: organ follows the deck's chord (was its own 4-bar loop)
       if(G.organ.has(s)){this.organVoiced(t+sw,deck,s%4===2?1:0.75);h=1;}
-      if(G.vox.has(s)&&r()<G.voxP){this.vox(t+sw,root+12+MINOR_PENT[Math.floor(r()*5)]);h=Math.max(h,0.7);}
+      if(G.vox.has(s)&&r()<G.voxP){this.vox(t+sw,LN("vox",root+12+MINOR_PENT[Math.floor(r()*5)],root+9,root+24));h=Math.max(h,0.7);}
       return h;}
     if(st==="tribal"){const T=U.tribal,g=this.step;let h=0;
       const nt=i=>root+(i>=5?12+MINOR_PENT[i-5]:MINOR_PENT[i]);
       if(g%T.cycA===0){const i=Math.floor(g/T.cycA)%T.arp.length;this.marimba(t,nt(T.arp[i]),0.9,(i%2?0.4:-0.4));h=1;}
-      if(((g-T.offB)%T.cycB+T.cycB)%T.cycB===0&&r()<T.pB){this.marimba(t,nt(T.arp[(g>>2)%T.arp.length])+12,0.55,0.1,true);h=Math.max(h,0.6);}
-      if(s===0&&this.bar%2===0&&r()<T.flute){this.flute(t+(r()<0.5?0:8*s16),root+12+MINOR_PENT[[0,2,3,4][Math.floor(r()*4)]],(4+4*Math.floor(r()*2))*s16);h=Math.max(h,0.5);}
+      if(((g-T.offB)%T.cycB+T.cycB)%T.cycB===0&&r()<T.pB){this.marimba(t,LN("trK",nt(T.arp[(g>>2)%T.arp.length])+12,root+12,root+26),0.55,0.1,true);h=Math.max(h,0.6);}   // v28: the kalimba answer is a guarded line too
+      if(s===0&&this.bar%2===0&&r()<T.flute){this.flute(t+(r()<0.5?0:8*s16),LN("fl",root+12+MINOR_PENT[[0,2,3,4][Math.floor(r()*4)]],root+9,root+24),(4+4*Math.floor(r()*2))*s16);h=Math.max(h,0.5);}
       if(s===0&&this.bar%4===0){this.drone(t,Math.min(4,this.padSpan(deck),this.tonalEnd(deck))*16*s16,{midi:cr-12,type:"triangle",det:6,cut:900,q:0.5,lvl:0.07,att:1.5,rel:1.5,lfo:0.05,depth:300},out);}
       return h;}
     if(st==="broken"){const B=U.broken,call=this.bar%2===0;let h=0;
       const scale=[0,3,5,7,10,12,15,17];
-      if((call?s<8:s>=8)&&s%2===0&&B.mask[(s>>1)%8]){const n=root+scale[B.arp[(s>>1)%8]]+(call?0:B.resp);this.pulse(t,n);h=1;}
-      if(B.bleep.has(s)&&r()<0.8){this.bleep(t,root+24+[0,7,12][Math.floor(r()*3)]);h=Math.max(h,0.6);}
+      if((call?s<8:s>=8)&&s%2===0&&B.mask[(s>>1)%8]){const n=root+scale[B.arp[(s>>1)%8]]+(call?0:B.resp);this.pulse(t,LN("pl",n,root,root+17));h=1;}
+      if(B.bleep.has(s)&&r()<0.8){this.bleep(t,LN("bl",root+24+[0,7,12][Math.floor(r()*3)],root+22,root+38));h=Math.max(h,0.6);}
       if(s===0&&this.bar%4===0){this.drone(t,Math.min(4,this.padSpan(deck),this.tonalEnd(deck))*16*s16,{midi:cr-12,type:"sawtooth",det:18,cut:420,q:2,lvl:0.07,att:0.8,rel:1.0,lfo:0.12,depth:150},out);}
       return h;}
     return 0;},
@@ -1253,12 +1259,13 @@ Object.assign(Engine.prototype,{
     os[0].addEventListener("ended",()=>{lp.disconnect();g.disconnect();});},
   acid(t,midi,acc,slide,dest=this.upDist){const c=this.ctx,{k}=this.upCut(),o=c.createOscillator(),lp=c.createBiquadFilter(),g=c.createGain(),len=this.s16*0.92;
     o.type="sawtooth";const f=mtof(midi);
-    if(slide&&this.lastAcid){o.frequency.setValueAtTime(this.lastAcid,t);o.frequency.setTargetAtTime(f,t,0.025);}else o.frequency.setValueAtTime(f,t);
+    if(slide&&this.lastAcid){o.frequency.setValueAtTime(this.lastAcid,t);o.frequency.setTargetAtTime(f,t,0.014);}else o.frequency.setValueAtTime(f,t);   // v28: short slide
     this.lastAcid=f;
-    lp.type="lowpass";lp.Q.value=acc?20:14;const base=Math.min(3000,260*k);
+    lp.type="lowpass";lp.Q.value=acc?20:14;const base=this.acidBase(k);
     lp.frequency.setValueAtTime(Math.min(9000,base*(acc?9:5)),t);lp.frequency.setTargetAtTime(base,t,acc?0.07:0.045);
     const pk=acc?0.11:0.075;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(pk,t+0.003);g.gain.setValueAtTime(pk,t+len-0.012);g.gain.linearRampToValueAtTime(0,t+len);
     o.connect(lp).connect(g).connect(dest);o.start(t);o.stop(t+len+0.02);this.free(o,lp,g);},
+  acidBase(k=this.upCut().k){return Math.min(3000,Math.max(450,260*k));},   // v28: the squelch never closes below 450 Hz (dark / swept-down acid went to mush)
   fmHit(t,midi,dest){const c=this.ctx,f=mtof(midi),car=c.createOscillator(),mod=c.createOscillator(),mi=c.createGain(),g=c.createGain(),hp=c.createBiquadFilter();
     mod.frequency.value=f*3.73;mi.gain.setValueAtTime(f*6,t);mi.gain.setTargetAtTime(0,t,0.03);car.frequency.value=f;
     mod.connect(mi).connect(car.frequency);hp.type="highpass";hp.frequency.value=900;
@@ -1299,14 +1306,15 @@ Object.assign(Engine.prototype,{
     car.connect(g).connect(p).connect(this.upG.tribal);car.start(t);mod.start(t);car.stop(t+tau*9);mod.stop(t+tau*9);this.free(car,g,p,mi);this.free(mod);},
   flute(t,midi,dur){const c=this.ctx,f=mtof(midi),n=c.createBufferSource(),bp=c.createBiquadFilter(),ng=c.createGain(),o=c.createOscillator(),og=c.createGain(),g=c.createGain(),vib=c.createOscillator(),vd=c.createGain();
     n.buffer=this.noise;n.loop=true;bp.type="bandpass";bp.frequency.value=f;bp.Q.value=28;ng.gain.value=3.2;
-    o.type="sine";o.frequency.value=f;og.gain.value=0.35;vib.frequency.value=5.2;vd.gain.value=5;vib.connect(vd).connect(o.detune);
-    const end=t+dur+0.35;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.07,t+0.18);g.gain.setValueAtTime(0.06,t+dur);g.gain.linearRampToValueAtTime(0,end);
+    o.type="sine";o.frequency.value=f;og.gain.value=0.35;vib.frequency.value=5.2;vd.gain.setValueAtTime(0,t);vd.gain.linearRampToValueAtTime(FLUTE.vib,t+dur*0.6);vib.connect(vd).connect(o.detune);
+    const end=t+dur+FLUTE.rel;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.07,t+FLUTE.att);g.gain.setValueAtTime(0.06,t+dur);g.gain.linearRampToValueAtTime(0,end);
     n.connect(bp).connect(ng).connect(g);o.connect(og).connect(g);g.connect(this.upG.tribal);
     for(const x of [n,o,vib]){x.start(t,x===n?this.rand():undefined);x.stop(end+0.05);}
     this.free(n,bp,ng,g);this.free(o,og);this.free(vib,vd);},
-  pulse(t,midi){const c=this.ctx,{k}=this.upCut(),o=c.createOscillator(),lp=c.createBiquadFilter(),g=c.createGain(),len=this.s16*0.6;
+  pulseCut(){return Math.min(7000,Math.max(1000,900*this.upCutLine()));},
+  pulse(t,midi){const c=this.ctx,o=c.createOscillator(),lp=c.createBiquadFilter(),g=c.createGain(),len=this.s16*0.6;
     o.type="square";o.frequency.value=mtof(midi);lp.type="lowpass";lp.Q.value=6;
-    const base=Math.min(7000,900*k);lp.frequency.setValueAtTime(base*3,t);lp.frequency.setTargetAtTime(base,t,0.03);
+    const base=this.pulseCut();lp.frequency.setValueAtTime(base*3,t);lp.frequency.setTargetAtTime(base,t,0.03);
     g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.075,t+0.002);g.gain.setValueAtTime(0.06,t+len);g.gain.linearRampToValueAtTime(0,t+len+0.015);
     o.connect(lp).connect(g).connect(this.upG.broken);o.start(t);o.stop(t+len+0.04);this.free(o,lp,g);},
   bleep(t,midi){const c=this.ctx,f=mtof(midi),o=c.createOscillator(),g=c.createGain();o.type="sine";
@@ -1471,7 +1479,7 @@ Object.assign(Engine.prototype,{
   chipOn(t,len){const C=this.chip,d=this.low,r=this.rand,bd=16*this.s16,ch=d.band==="bchill";
     Object.assign(C,{on:true,start:this.bar,end:this.bar+len,deck:d,chill:ch,mode:r()<0.5?"arp":"lead",duty:ch?0:CHIP_DUTY[Math.floor(r()*3)],lvl:ch?0.5:0.8,M:this.newMotif(d)});
     const g=this.chipFade.gain,f=this.chipLp.frequency;g.cancelAndHoldAtTime(t);g.setTargetAtTime(C.lvl,t,bd*0.3);
-    f.cancelAndHoldAtTime(t);f.setValueAtTime(1500,t);f.exponentialRampToValueAtTime(ch?5000:7000,t+2*bd);
+    f.cancelAndHoldAtTime(t);f.setValueAtTime(2600,t);f.exponentialRampToValueAtTime(ch?5000:7000,t+bd);   // v28: opens from 2.6 kHz over a bar (was 1.5 kHz over two)
     this.chipSegs.push([this.bar,this.bar+len,d.band,C.mode]);
     this.cond.logItem(`チップチューン・スパイス ${len}小節（${C.mode==="arp"?"アルペジオ":"リード"}・${ch?"三角波":"パルス"+CHIP_DUTY_JA[C.duty]}）`,"おまかせ","done",this.bar,t);},
   chipFadeOut(t,dur){const g=this.chipFade.gain,f=this.chipLp.frequency;g.cancelAndHoldAtTime(t);g.setTargetAtTime(0,t,dur*0.3);f.cancelAndHoldAtTime(t);f.exponentialRampToValueAtTime(1500,t+dur);},
@@ -1483,8 +1491,8 @@ Object.assign(Engine.prototype,{
     const toMidi=(deg,oct)=>{const oc=Math.floor(deg/L);let m=root+12+sc[((deg%L)+L)%L]+12*(oc+oct);while(m>root+24)m-=12;while(m<root+2)m+=12;return m;};
     for(const n of N){if(n.s!==s||(C.mode==="arp"&&r()<0.55))continue;
       let midi=toMidi(n.deg+M.tr+ci,n.oct);const dur=s16*(C.chill?2.2:1.3)*(n.len||1)*(0.8+0.4*r());
-      {const pcs=this.chordPcs(d);if((s%4===0&&dur>1.2*s16)||(dur>2.5*s16&&this.harsh(midi,root,pcs)))midi=this.snapChord(midi,root,pcs);}
-      this.chipNote(t,midi,dur,n.vel*(0.85+0.3*r()),{slide:!C.chill&&r()<0.12?(r()<0.5?-2:2):0,vib:dur>s16*2&&r()<0.5});}
+      {const pcs=this.chordPcs(d);if((s%4===0&&dur>1.2*s16)||(dur>2.5*s16&&this.harsh(midi,root,pcs)))midi=this.snapChord(midi,root,pcs);midi=this.lineNote("chip",midi,root,pcs,root+5,root+22,s);}
+      this.chipNote(t,midi,dur,n.vel*(0.85+0.3*r()),{slide:!C.chill&&r()<0.03?(r()<0.5?-1:1):0,vib:dur>s16*3&&r()<0.5?6:0});}   // v28: rare 1-semitone flick, 6-cent late vibrato only on long notes (was 12 % ±2 st slides, 22 cents)
     const arpStep=C.chill?s%8===4:s%4===2;
     if((C.mode==="arp"||letter==="-")&&arpStep&&r()<(C.chill?0.6:0.75)){const sh=semi>6?-12:0,tones=this.chordTones(d,semi,3).map(x=>root+12+x+sh);
       if(r()<0.5)tones.push(tones[0]+12);this.chipArp(t,tones,(C.chill?4:2)*s16,C.chill?s16:s16/2);}
@@ -1492,8 +1500,8 @@ Object.assign(Engine.prototype,{
   chipOsc(t,f){const o=this.ctx.createOscillator();if(this.chip.chill)o.type="triangle";else o.setPeriodicWave(this.chipWaves[this.chip.duty]);o.frequency.setValueAtTime(f,t);return o;},
   chipEnv(g,t,pk,dur){g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(pk,t+0.003);g.gain.setTargetAtTime(pk*0.7,t+0.003,Math.max(0.02,dur*0.5));g.gain.setTargetAtTime(0,t+dur,0.008);},
   chipNote(t,midi,dur,vel,o={}){const c=this.ctx,f=mtof(midi),os=this.chipOsc(t,o.slide?f*Math.pow(2,o.slide/12):f),g=c.createGain();
-    if(o.slide)os.frequency.exponentialRampToValueAtTime(f,t+0.04);
-    if(o.vib){const l=c.createOscillator(),lg=c.createGain();l.frequency.value=6;lg.gain.setValueAtTime(0,t);lg.gain.linearRampToValueAtTime(22,t+dur*0.7);l.connect(lg).connect(os.detune);l.start(t);l.stop(t+dur+0.1);this.free(l,lg);}
+    if(o.slide)os.frequency.exponentialRampToValueAtTime(f,t+0.022);
+    if(o.vib){const l=c.createOscillator(),lg=c.createGain();l.frequency.value=6;lg.gain.setValueAtTime(0,t);lg.gain.setValueAtTime(0,t+dur*0.5);lg.gain.linearRampToValueAtTime(+o.vib||6,t+dur*0.8);l.connect(lg).connect(os.detune);l.start(t);l.stop(t+dur+0.1);this.free(l,lg);}
     this.chipEnv(g,t,(this.chip.chill?0.055:0.045)*vel,dur);os.connect(g).connect(this.chipIn);os.start(t);os.stop(t+dur+0.08);this.free(os,g);
     if(this.debug)this.chipLog.push([this.bar,this.step%16,"lead",midi,this.chip.deck.key,this.chip.deck.mode]);},
   chipArp(t,midis,dur,rate){const c=this.ctx,os=this.chipOsc(t,mtof(midis[0])),g=c.createGain();
@@ -1596,7 +1604,7 @@ Object.assign(Engine.prototype,{
   oddStep(t,s,M,ev){const O=this.odd,d=O.deck||this.low,q=this.oddPos(s);if(!q)return;ev.oddG=q.gi;if(!q.start)return;const a=this.oddAmt(s);if(a<=0)return;
     ev.odd=1;
     if(M.u){const root=57+offOf(d.key!=null?d.key:S.key),{semi}=this.chordOf(d),tn=this.chordTones(d,semi,3),sh=semi>6?-12:0,k=O.seq[q.gi];
-      const m=root+12+O.oct+sh+(k===3?tn[0]+12:tn[k]),vel=(q.gi===0?1:0.78)*(0.9+0.15*this.odr());
+      const b0=root+12+O.oct,m=this.lineNote("odd",b0+sh+(k===3?tn[0]+12:tn[k]),root,this.chordPcs(d),b0-5,b0+12,s),vel=(q.gi===0?1:0.78)*(0.9+0.15*this.odr());
       this.oddPluck(t,m,vel,O.chill);ev.stab=Math.max(ev.stab||0,0.8*vel);if(this.debug)this.oddLog.push([this.bar,s,q.gi,m,root,semi]);}
     const K=d.kit;
     const rr=this.rand;this.rand=this.odr;   // accent hits draw from their own stream: the rest of the set plays as without them
@@ -1728,7 +1736,7 @@ Object.assign(Engine.prototype,{
       if(M.h&&this.chillMode!=="beatless"){const bus=d.out.hat,ha=a*Math.min(1,0.45+(this.bar-O.start)/3);
         if(s%4===2){this.hat(t,0.17*a,0.3,0.05+0.035*pr,0.12,7200,bus);ev.hat=Math.max(ev.hat||0,1);}            // 909-ish open hat on the off-beat
         else{const tt=s%2?t+this.cond.p.swing*0.25*s16:t;this.hat(tt,(s%2?0.11:0.08)*ha,0.045,0.011,(this.shr()-0.5)*0.3,8400,bus);ev.hat=Math.max(ev.hat||0,0.5);}}
-      if(i>=0&&M.u){const root=57+offOf(d.key!=null?d.key:S.key)+O.oct,m=this.bellNote(d,R.idx[i],root);
+      if(i>=0&&M.u){const root=57+offOf(d.key!=null?d.key:S.key)+O.oct,m=this.lineNote("bell",this.bellNote(d,R.idx[i],root),root,this.chordPcs(d),root-2,root+14,s);
         const vel=R.acc[i]*a;this.bellFM(t,m,vel,pr);ev.stab=Math.max(ev.stab||0,0.8*vel);ev.showV=vel;if(this.debug)this.showLog.push([this.bar,s,"bl",m,root-O.oct]);}}}
     finally{this.rand=rr;}},
   // riff degree k (0..4) -> chord tone of the current chord, kept inside the key's natural minor (A minor in A)
@@ -1758,17 +1766,17 @@ const PATCHES={
   minimal:[{n:"classic",ja:"ダブ・スタブ"},
     {n:"dubchord",ja:"ダブ・コード（m9）",osc:[["sawtooth",-8,.5],["sawtooth",8,.5]],chord:[0,3,7,10,14],f:{type:"lowpass",cut:900,q:2,env:3,dec:.12},a:{a:.003,d:.25,s:0,r:.08},lvl:.075,gate:.9},
     {n:"bleep",ja:"サイン・ブリープ",osc:[["sine",0,1]],chord:[0],oct:12,a:{a:.002,d:.09,s:0,r:.03},lvl:.15,gate:.5},
-    {n:"glass",ja:"グラス・ベル（FM）",fm:{ratio:3.5,index:2.2,dec:.25},osc:[["sine",0,1]],chord:[0],oct:12,a:{a:.002,d:.6,s:0,r:.3},lvl:.1,gate:1},
-    {n:"hypno",ja:"ヒプノ・シーケンス",osc:[["sawtooth",0,.6],["square",5,.4]],chord:[0],oct:0,f:{type:"lowpass",cut:500,q:9,env:5,dec:.09},a:{a:.002,d:.18,s:.2,r:.04},lvl:.075,gate:.6}],
+    {n:"glass",ja:"グラス・ベル（FM）",fm:{ratio:3.5,index:2.2,dec:.2},osc:[["sine",0,1]],chord:[0],oct:12,a:{a:.002,d:.55,s:0,r:.2},lvl:.1,gate:1},
+    {n:"hypno",ja:"ヒプノ・シーケンス",osc:[["sawtooth",0,.6],["square",5,.4]],chord:[0],oct:0,f:{type:"lowpass",cut:900,q:8,env:4,dec:.07},a:{a:.002,d:.18,s:.2,r:.04},lvl:.075,gate:.6}],
   hard:[{n:"classic",ja:"ディストーション・スタブ＋アシッド"},
     {n:"acid",ja:"アシッド・ライン",special:"acid"},
-    {n:"siren",ja:"サイレン・リード",osc:[["square",-12,.5],["square",12,.5]],chord:[0],oct:12,f:{type:"bandpass",cut:1800,q:3,env:1.5,dec:.2},a:{a:.01,d:.3,s:.5,r:.1},bend:{from:-7,time:.12},lvl:.09,gate:1.6,dist:true},
-    {n:"hoover",ja:"フーバー",osc:[["sawtooth",-25,.4],["sawtooth",25,.4],["sawtooth",0,.3]],chord:[0,7,12],oct:-12,f:{type:"lowpass",cut:1400,q:2,env:2,dec:.25},a:{a:.02,d:.4,s:.4,r:.15},bend:{from:5,time:.15},lvl:.08,gate:2,dist:true},
+    {n:"siren",ja:"サイレン・リード",osc:[["square",-7,.5],["square",7,.5]],chord:[0],oct:12,f:{type:"bandpass",cut:1800,q:3,env:2,dec:.12},a:{a:.004,d:.3,s:.5,r:.08},bend:{from:-2,time:.025},lvl:.09,gate:1.6,dist:true},
+    {n:"hoover",ja:"フーバー",osc:[["sawtooth",-9,.4],["sawtooth",9,.4],["sawtooth",0,.3]],chord:[0,7,12],oct:-12,f:{type:"lowpass",cut:1400,q:2,env:2.5,dec:.12},a:{a:.006,d:.35,s:.4,r:.1},bend:{from:2,time:.03},lvl:.08,gate:2,dist:true},
     {n:"metal",ja:"メタル・パーカッション（FM）",fm:{ratio:5.33,index:6,dec:.06},osc:[["sine",0,1]],chord:[0],oct:24,f:{type:"highpass",cut:900,q:.7,env:1,dec:.05},a:{a:.001,d:.12,s:0,r:.05},lvl:.07,gate:.4}],
   groove:[{n:"classic",ja:"オルガン＋ボイス"},
     {n:"clav",ja:"クラビ",osc:[["square",0,.6],["sawtooth",3,.3]],chord:[0,7],oct:0,f:{type:"bandpass",cut:1500,q:2.5,env:2.5,dec:.04},a:{a:.001,d:.09,s:0,r:.02},lvl:.11,gate:.35},
-    {n:"brass",ja:"ブラス・スタブ",osc:[["sawtooth",-6,.5],["sawtooth",6,.5]],chord:[0,3,7],oct:0,f:{type:"lowpass",cut:700,q:1.5,env:4,dec:.08},a:{a:.012,d:.15,s:.3,r:.06},lvl:.065,gate:.7},
-    {n:"piano",ja:"ハウス・ピアノ",osc:[["triangle",0,.7],["sine",0,.4]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:3000,q:.7,env:1.5,dec:.2},a:{a:.002,d:.35,s:0,r:.1},lvl:.08,gate:.8},
+    {n:"brass",ja:"ブラス・スタブ",osc:[["sawtooth",-6,.5],["sawtooth",6,.5]],chord:[0,3,7],oct:0,f:{type:"lowpass",cut:1000,q:1.5,env:4,dec:.07},a:{a:.006,d:.15,s:.3,r:.06},lvl:.065,gate:.7},
+    {n:"piano",ja:"ハウス・ピアノ",osc:[["triangle",0,.65],["sawtooth",0,.14],["sine",0,.35]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:3000,q:.7,env:2,dec:.12},a:{a:.002,d:.35,s:0,r:.1},lvl:.08,gate:.8},
     {n:"voxchop",ja:"ボイス・チョップ",special:"vox"}],
   tribal:[{n:"classic",ja:"マリンバ＋フルート"},
     {n:"kalimba",ja:"カリンバ",special:"kalimba"},
@@ -1784,22 +1792,22 @@ const PATCHES={
 const PATCHESCH={
   groove:[{n:"dubchord",ja:"ダブ・コード（m9）",osc:[["sawtooth",-8,.5],["sawtooth",8,.5]],chord:[0,3,7,10,14],f:{type:"lowpass",cut:800,q:2,env:3,dec:.12},a:{a:.003,d:.25,s:0,r:.08},lvl:.07,gate:.9},
     {n:"dubstab",ja:"ダブ・スタブ（こもり）",osc:[["sawtooth",-6,.5],["sawtooth",6,.5]],chord:[0,3,7,10],f:{type:"lowpass",cut:600,q:3,env:3,dec:.1},a:{a:.002,d:.2,s:0,r:.06},lvl:.07,gate:.6},
-    {n:"chillkeys",ja:"チル・キー（ローズ風）",osc:[["triangle",0,.6],["sine",0,.5]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1500,q:.7,env:1.4,dec:.3},a:{a:.006,d:.6,s:.15,r:.35},lvl:.07,gate:1.6},
-    {n:"softbell",ja:"ソフト・ベル",fm:{ratio:2,index:1.2,dec:.4},osc:[["sine",0,1]],chord:[0,7],oct:12,a:{a:.004,d:.8,s:0,r:.4},lvl:.07,gate:1.2}],
-  minimal:[{n:"deepkeys",ja:"ディープ・キー",osc:[["triangle",0,.7],["sine",0,.4]],chord:[0,3,7],oct:0,f:{type:"lowpass",cut:1200,q:.8,env:1.5,dec:.2},a:{a:.004,d:.4,s:0,r:.2},lvl:.075,gate:.9},
+    {n:"chillkeys",ja:"チル・キー（ローズ風）",osc:[["triangle",0,.6],["sawtooth",0,.1],["sine",0,.45]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1700,q:.7,env:2,dec:.14},a:{a:.004,d:.55,s:.12,r:.2},lvl:.07,gate:1.6},
+    {n:"softbell",ja:"ソフト・ベル",fm:{ratio:2,index:1.5,dec:.25},osc:[["sine",0,1]],chord:[0,7],oct:12,a:{a:.003,d:.7,s:0,r:.25},lvl:.07,gate:1.2}],
+  minimal:[{n:"deepkeys",ja:"ディープ・キー",osc:[["triangle",0,.65],["sawtooth",0,.12],["sine",0,.35]],chord:[0,3,7],oct:0,f:{type:"lowpass",cut:1500,q:.8,env:2.2,dec:.12},a:{a:.003,d:.4,s:0,r:.16},lvl:.075,gate:.9},
     {n:"bleep",ja:"サイン・ブリープ",osc:[["sine",0,1]],chord:[0],oct:12,a:{a:.002,d:.09,s:0,r:.03},lvl:.12,gate:.5},
-    {n:"glass",ja:"グラス・ベル（FM）",fm:{ratio:3.5,index:2.2,dec:.25},osc:[["sine",0,1]],chord:[0],oct:12,a:{a:.002,d:.6,s:0,r:.3},lvl:.085,gate:1},
+    {n:"glass",ja:"グラス・ベル（FM）",fm:{ratio:3.5,index:2.2,dec:.2},osc:[["sine",0,1]],chord:[0],oct:12,a:{a:.002,d:.55,s:0,r:.2},lvl:.085,gate:1},
     {n:"dubchord",ja:"ダブ・コード（m9）",osc:[["sawtooth",-8,.5],["sawtooth",8,.5]],chord:[0,3,7,10,14],f:{type:"lowpass",cut:800,q:2,env:3,dec:.12},a:{a:.003,d:.25,s:0,r:.08},lvl:.065,gate:.9}],
-  hard:[{n:"padswell",ja:"パッド・スウェル",osc:[["sawtooth",-10,.5],["sawtooth",10,.5]],chord:[0,7,10,14],oct:0,f:{type:"lowpass",cut:900,q:.8,env:1.2,dec:.8},a:{a:.35,d:1.5,s:.6,r:1.2},lvl:.04,gate:6},
-    {n:"shimmer",ja:"シマー",osc:[["sine",0,1]],chord:[0,7],oct:24,a:{a:.05,d:1,s:0,r:.6},lvl:.045,gate:3},
-    {n:"glass",ja:"グラス・ベル（FM）",fm:{ratio:3.5,index:2.2,dec:.25},osc:[["sine",0,1]],chord:[0],oct:12,a:{a:.002,d:.6,s:0,r:.3},lvl:.08,gate:1},
-    {n:"softbell",ja:"ソフト・ベル",fm:{ratio:2,index:1.2,dec:.4},osc:[["sine",0,1]],chord:[0,7],oct:12,a:{a:.004,d:.8,s:0,r:.4},lvl:.065,gate:1.2}],
+  hard:[{n:"padswell",ja:"パッド・スウェル",osc:[["sawtooth",-6,.5],["sawtooth",6,.5]],chord:[0,7,10,14],oct:0,f:{type:"lowpass",cut:1000,q:.8,env:2,dec:.3},a:{a:.018,d:1.2,s:.45,r:.4},lvl:.04,gate:3},
+    {n:"shimmer",ja:"シマー",fm:{ratio:3,index:.6,dec:.15},osc:[["sine",0,1]],chord:[0,7],oct:24,a:{a:.006,d:.8,s:0,r:.3},lvl:.045,gate:2},
+    {n:"glass",ja:"グラス・ベル（FM）",fm:{ratio:3.5,index:2.2,dec:.2},osc:[["sine",0,1]],chord:[0],oct:12,a:{a:.002,d:.55,s:0,r:.2},lvl:.08,gate:1},
+    {n:"softbell",ja:"ソフト・ベル",fm:{ratio:2,index:1.5,dec:.25},osc:[["sine",0,1]],chord:[0,7],oct:12,a:{a:.003,d:.7,s:0,r:.25},lvl:.065,gate:1.2}],
   tribal:[{n:"kalimba",ja:"カリンバ",special:"kalimba"},{n:"flute",ja:"バンブー・フルート",special:"flute"},
     {n:"logdrum",ja:"ログドラム",osc:[["sine",0,1]],chord:[0],oct:-12,bend:{from:7,time:.03},a:{a:.001,d:.22,s:0,r:.06},lvl:.16,gate:.6},
     {n:"marimbaS",ja:"ウッド・マレット",fm:{ratio:4,index:1.6,dec:.04},osc:[["sine",0,1]],chord:[0],oct:0,a:{a:.001,d:.25,s:0,r:.08},lvl:.1,gate:.5}],
-  broken:[{n:"lofikeys",ja:"ローファイ・キー",osc:[["triangle",-9,.6],["sine",7,.5]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1300,q:.7,env:1.2,dec:.3},a:{a:.008,d:.5,s:.2,r:.3},lvl:.065,gate:1.4},
-    {n:"vibes",ja:"ヴィブラフォン（FM）",fm:{ratio:4,index:1,dec:.3},osc:[["sine",0,1]],chord:[0,7],oct:12,a:{a:.002,d:.7,s:0,r:.4},lvl:.07,gate:1},
-    {n:"chillkeys",ja:"チル・キー（ローズ風）",osc:[["triangle",0,.6],["sine",0,.5]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1500,q:.7,env:1.4,dec:.3},a:{a:.006,d:.6,s:.15,r:.35},lvl:.07,gate:1.6},
+  broken:[{n:"lofikeys",ja:"ローファイ・キー",osc:[["triangle",-4,.6],["sawtooth",0,.12],["sine",4,.45]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1500,q:.7,env:2,dec:.14},a:{a:.004,d:.45,s:.15,r:.2},lvl:.065,gate:1.4},
+    {n:"vibes",ja:"ヴィブラフォン（FM）",fm:{ratio:4,index:1.3,dec:.2},osc:[["sine",0,1]],chord:[0,7],oct:12,a:{a:.002,d:.6,s:0,r:.25},lvl:.07,gate:1},
+    {n:"chillkeys",ja:"チル・キー（ローズ風）",osc:[["triangle",0,.6],["sawtooth",0,.1],["sine",0,.45]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1700,q:.7,env:2,dec:.14},a:{a:.004,d:.55,s:.12,r:.2},lvl:.07,gate:1.6},
     {n:"dubstab",ja:"ダブ・スタブ（こもり）",osc:[["sawtooth",-6,.5],["sawtooth",6,.5]],chord:[0,3,7,10],f:{type:"lowpass",cut:600,q:3,env:3,dec:.1},a:{a:.002,d:.2,s:0,r:.06},lvl:.065,gate:.6}]};
 const patchList=d=>(d.band==="bchill"?PATCHESCH:PATCHES)[d.style];
 const ORGAN_ART={stab:{a:.002,dec:.05,sus:.22,len:.15,rel:.045,cut:3000,click:.8,lvl:.8},          // lvl: matched to the other groove 上モノ (≈ −37 dB RMS solo)
@@ -1809,9 +1817,9 @@ const CLASSIC_SPARSE={n:"classic",special:"classic"};
 const ORGAN_ART_JA={stab:"スタブ",leslie:"ロータリー",swell:"スウェル"};
 const SECTION_JA={off:"お休み",sparse:"まばら",main:"メイン",intense:"強め"};
 const CHILL_PATCHES=[
-  {n:"chillkeys",ja:"チル・キー（ローズ風）",osc:[["triangle",0,.6],["sine",0,.5]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1500,q:.7,env:1.4,dec:.3},a:{a:.006,d:.6,s:.15,r:.35},lvl:.075,gate:1.6},
+  {n:"chillkeys",ja:"チル・キー（ローズ風）",osc:[["triangle",0,.6],["sawtooth",0,.1],["sine",0,.45]],chord:[0,3,7,10],oct:0,f:{type:"lowpass",cut:1700,q:.7,env:2,dec:.14},a:{a:.004,d:.55,s:.12,r:.2},lvl:.075,gate:1.6},
   {n:"dubchord",ja:"ダブ・コード（チル）",osc:[["sawtooth",-8,.5],["sawtooth",8,.5]],chord:[0,3,7,10,14],f:{type:"lowpass",cut:700,q:2,env:2.5,dec:.14},a:{a:.004,d:.3,s:0,r:.12},lvl:.07,gate:.9},
-  {n:"softbell",ja:"ソフト・ベル",fm:{ratio:2,index:1.2,dec:.4},osc:[["sine",0,1]],chord:[0,7],oct:12,a:{a:.004,d:.8,s:0,r:.4},lvl:.075,gate:1.2}];
+  {n:"softbell",ja:"ソフト・ベル",fm:{ratio:2,index:1.5,dec:.25},osc:[["sine",0,1]],chord:[0,7],oct:12,a:{a:.003,d:.7,s:0,r:.25},lvl:.075,gate:1.2}];
 const MOTIF_OPS=["移調","ずらし","音を足す","音を抜く","オクターブ","アクセント移動","ゲート／フィルター","音程を一歩","フォーム変化","展開小節"];
 const MOTIF_N={minimal:[2,4],hard:[2,4],groove:[3,5],tribal:[3,5],broken:[2,4]};   // v18: one note less at the top (density had risen since v13)
 // per-style onset weights for generated rhythm cells (16 steps)
@@ -1854,6 +1862,19 @@ Object.assign(Engine.prototype,{
   // ----- v18: consonance helpers. Triad pitch classes (relative to the key root) of a deck's chord; nearest chord tone; chord intervals for stabs
   chordPcs(d,bar=this.bar){if(!d||!d.harm)return [0,3,7];const {semi}=this.chordOf(d,bar);return this.chordTones(d,semi,3).map(x=>((x%12)+12)%12);},
   harsh(midi,root,pcs){const pc=(((midi-root)%12)+12)%12;return !pcs.includes(pc)&&pcs.some(x=>{const d=(x-pc+12)%12;return d===1||d===11||d===6;});},   // a semitone / tritone off a chord tone
+  // v28: melodic line guard (every line voice: motif lead, classic voices, chiptune lead, odd-meter pluck, Bells riff). Strong 16ths land on chord
+  // tones and weak ones lose semitone / tritone rubs; the note keeps its own octave when that is within a 5th of the line's previous note (<= 1 bar
+  // ago) and inside the line's register band, else it takes the nearest in-band octave; a leap still wider than a 5th is replaced by the nearest
+  // chord tone within a 5th. An octave survives only on a 4-bar phrase start, to a chord tone, ~30 % of the time.
+  lineNote(key,midi,root,pcs,lo,hi,s=this.step%16){const q=this.step,LS=this.lines||(this.lines={}),L=LS[key],prev=L&&q-L.q<=16&&q>=L.q?L.m:null;
+    let m=midi;const pc=x=>(((x-root)%12)+12)%12,isCT=x=>!pcs||!pcs.length||pcs.includes(pc(x));
+    if(pcs&&pcs.length&&(s%4===0||this.harsh(m,root,pcs)))m=this.snapChord(m,root,pcs);
+    const inB=x=>x>=lo&&x<=hi,keepOct=prev!=null&&Math.abs(m-prev)===12&&s===0&&this.bar%4===0&&isCT(m)&&inB(m)&&h3((this.seed|0)+28,q,key.length)<0.3;
+    if(!keepOct&&!(inB(m)&&(prev==null||Math.abs(m-prev)<=7))){const ref=prev!=null?prev:m;let best=null;
+      for(let x=m-48;x<=m+48;x+=12)if(inB(x)&&(best==null||Math.abs(x-ref)<Math.abs(best-ref)))best=x;
+      if(best==null){best=m;while(best>hi)best-=12;while(best<lo)best+=12;}m=best;
+      if(prev!=null&&Math.abs(m-prev)>7){let b2=null;for(let x=prev-7;x<=prev+7;x++)if(inB(x)&&isCT(x)&&(b2==null||Math.abs(x-m)<Math.abs(b2-m)))b2=x;if(b2!=null)m=b2;}}
+    LS[key]={m,q};return m;},
   snapChord(midi,root,pcs){if(!pcs||!pcs.length)return midi;for(let k=0;k<=6;k++)for(const m of [midi-k,midi+k])if(pcs.includes((((m-root)%12)+12)%12))return m;return midi;},
   stabIvs(d,semi){if(!d||!d.harm)return [0,3,7,10];const t=this.chordTones(d,semi,4).map(x=>x-semi);return (t[3]-t[0])%12===10?t:t.slice(0,3);},   // triad (+ minor 7th only; a major 7th is a semitone under the root)
   // mode colour tones (phrygian b2, dorian 6) stay out of sustained pad notes unless they are the chord root
@@ -1892,8 +1913,8 @@ Object.assign(Engine.prototype,{
     const W=(STEP_W[st]||STEP_W.minimal).slice(),out=[];
     for(let k=0;k<n;k++){let x=r()*W.reduce((a,b)=>a+b,0);let i=0;for(;i<15;i++){x-=W[i];if(x<=0)break;}if(!W[i])break;out.push(i);W[i]=0;if(i>0)W[i-1]*=0.5;if(i<15)W[i+1]*=0.5;}
     return out.sort((a,b)=>a-b);},
-  // Markov contour over scale degrees: mostly steps, some repeats, few leaps; a question ends off the tonic, an answer resolves
-  walk(r,d,L){const x=r();const st=x<0.18?0:x<0.43?1:x<0.68?-1:x<0.78?2:x<0.88?-2:x<0.94?(L===5?2:3):(r()<0.5?-3:4);let n=d+st;if(n>L+3)n-=2*st;if(n<-2)n-=2*st;return n;},
+  // Markov contour over scale degrees: mostly steps, some repeats, few leaps; a question ends off the tonic, an answer resolves (v28: no +4 degree leaps)
+  walk(r,d,L){const x=r();const st=x<0.2?0:x<0.46?1:x<0.72?-1:x<0.82?2:x<0.92?-2:x<0.97?(L===5?2:3):-3;let n=d+st;if(n>L+3)n-=2*st;if(n<-2)n-=2*st;return n;},
   genLine(cell,L,end,from){const r=this.rand,CT=L===5?[0,1,3]:[0,2,4];let d=from!=null?from:(r()<0.55?0:CT[1+Math.floor(r()*2)]);
     return cell.map((s,i)=>{if(i>0)d=this.walk(r,d,L);
       if(i===cell.length-1&&cell.length>1){if(end==="q"&&d%L===0)d+=r()<0.5?1:-1;if(end==="a")d=r()<0.6?0:(r()<0.5?CT[2]:L);}
@@ -1925,9 +1946,9 @@ Object.assign(Engine.prototype,{
       case 2:if(N.length<5){const used=new Set(N.map(n=>n.s)),fr=[...Array(16).keys()].filter(s=>!used.has(s)),s=fr[Math.floor(r()*fr.length)],nb=N.filter(n=>n.s<s).pop();
         N.push({s,deg:nb?this.walk(r,nb.deg,L):0,oct:0,vel:0.7,acc:false,len:1});N.sort((a,b)=>a.s-b.s);}break;       // note add (neighbour of the previous note)
       case 3:if(N.length>2)N.splice(1+Math.floor(r()*(N.length-1)),1);break;                          // note drop
-      case 4:if(N.length){const n=N[Math.floor(r()*N.length)];n.oct=n.oct?0:1;}break;               // octave jump
+      case 4:if(N.length){const n=N[0];n.oct=n.oct?0:1;}break;               // octave jump (v28: the bar's head note only -- the line guard keeps it on a phrase start)
       case 5:if(N.length){for(const n of N)n.acc=false;N[Math.floor(r()*N.length)].acc=true;}break;  // accent move
-      case 6:M.gate=Math.max(0.4,Math.min(2,M.gate*(r()<0.5?0.6:1.6)));M.fenv=Math.max(0.4,Math.min(2.5,M.fenv*(r()<0.5?0.6:1.6)));break;
+      case 6:M.gate=Math.max(0.4,Math.min(1.4,M.gate*(r()<0.5?0.6:1.6)));M.fenv=Math.max(0.4,Math.min(2.5,M.fenv*(r()<0.5?0.6:1.6)));break;
       case 7:if(N.length){const i=Math.floor(r()*N.length);N[i].deg=this.walk(r,N[i].deg,L);}break;  // one pitch moves (Markov step)
       case 8:{const i=1+Math.floor(r()*7);M.form[i]=["A","B","C","-"][Math.floor(r()*(i%2?4:3))];break;}  // form: another bar answers / rests
       case 9:M.bars.C=this.varyBar(M.bars.A,L);break;}                                              // new development bar
@@ -1966,9 +1987,11 @@ Object.assign(Engine.prototype,{
     g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(lvl,t+dur*0.4);g.gain.linearRampToValueAtTime(0,t+dur);
     n.connect(bp).connect(g).connect(dest);n.start(t,this.rand());lfo.start(t);n.stop(t+dur+0.05);lfo.stop(t+dur+0.05);this.free(n,bp,g);this.free(lfo,ld);},
   // generic patch voice
-  synth(t,midi,vel,dur,P,dest){const c=this.ctx,{k}=this.upCut(),g=c.createGain(),nodes=[g];let filt=null;
-    if(P.f){filt=c.createBiquadFilter();filt.type=P.f.type;filt.Q.value=P.f.q;const base=Math.min(12000,P.f.cut*k);
-      filt.frequency.setValueAtTime(Math.min(16000,base*Math.max(1,P.f.env*(P.fenv||1))),t);filt.frequency.setTargetAtTime(base,t,P.f.dec);filt.connect(g);nodes.push(filt);}
+  // v28: lowpass floor (lines 1.1 kHz, chords 750 Hz) and a filter envelope that always opens (>= x1.6) -> defined, never muffled
+  synthCut(P){const k=this.upCutLine(),fl=P.f.type==="lowpass"?(P.chord&&P.chord.length>=3?750:1100):0;return Math.min(12000,Math.max(fl,P.f.cut*k));},
+  synth(t,midi,vel,dur,P,dest){const c=this.ctx,g=c.createGain(),nodes=[g];let filt=null;
+    if(P.f){filt=c.createBiquadFilter();filt.type=P.f.type;filt.Q.value=P.f.q;const base=this.synthCut(P);
+      filt.frequency.setValueAtTime(Math.min(16000,base*Math.max(P.f.type==="lowpass"?1.6:1,P.f.env*(P.fenv||1))),t);filt.frequency.setTargetAtTime(base,t,P.f.dec);filt.connect(g);nodes.push(filt);}
     const A=P.a,pk=P.lvl*vel,end=t+Math.max(A.a+0.01,dur);
     g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(pk,t+A.a);g.gain.setTargetAtTime(pk*A.s,t+A.a,A.d/3);g.gain.setTargetAtTime(0,end,A.r/3);
     if(P.sat){const ws=c.createWaveShaper(),sg=c.createGain();ws.curve=this.satCurve;sg.gain.value=0.55;g.connect(ws).connect(sg).connect(dest);nodes.push(ws,sg);}
@@ -1995,9 +2018,10 @@ Object.assign(Engine.prototype,{
     for(const sn of SN){const n=sn.n,i=sn.i;if(sn.s!==s)continue;
       let midi=toMidi(n.deg+M.tr+ci,n.oct);const vel=n.vel*(n.acc?1.25:1)*(0.88+0.24*r()),dur=s16*(pv.gate||1)*M.gate*1.6*(n.len||1)*(0.8+0.4*r()),fenv=M.fenv*(0.85+0.3*r());
       {const sp=pv.special,ed=sp==="chant"?2.5*s16:sp==="flute"?(i===0?6*s16:0.25):sp==="kalimba"?0.25:sp==="vox"?0.13:sp==="bleep"?0.1:sp==="acid"?0.92*s16:dur;
-        if(isCh||(s%4===0&&ed>1.2*s16)||(ed>2.5*s16&&this.harsh(midi,root,pcs)))midi=this.snapChord(midi,root,pcs);}   // v18: chord tones on strong beats; long weak-step notes only lose harsh tones
+        if(isCh||(s%4===0&&ed>1.2*s16)||(ed>2.5*s16&&this.harsh(midi,root,pcs)))midi=this.snapChord(midi,root,pcs);
+        midi=this.lineNote("m"+deck.id,midi,root,pcs,root-5,root+12,s);}   // v28: leaps capped, narrow register band   // v18: chord tones on strong beats; long weak-step notes only lose harsh tones
       switch(pv.special){
-        case "acid":this.acid(t,midi-12,n.acc,r()<0.25,st==="hard"?this.upDist:out);break;
+        case "acid":this.acid(t,midi-12,n.acc,r()<0.1,st==="hard"?this.upDist:out);break;
         case "vox":this.vox(t,midi+12,this.upG.groove);break;
         case "chant":this.vox(t,midi,this.upG.tribal,s16*2.5);break;
         case "kalimba":this.marimba(t,midi+12,vel,(i%2?0.35:-0.35),true);break;
@@ -2005,11 +2029,11 @@ Object.assign(Engine.prototype,{
         case "bleep":this.bleep(t,midi+24);break;
         case "classic":this.classicHit(st,t,midi,vel,deck,i);break;
         default:{const P=voiced(midi);this.synth(t,midi,vel,dur,{...P,fenv},out);
-          if(A.section==="intense"&&n.acc&&r()<0.5)this.synth(t+s16/2,midi+12,0.5*vel,dur*0.6,{...P,fenv},out);}}
+          if(A.section==="intense"&&n.acc&&r()<0.5)this.synth(t+s16/2,midi,0.42*vel,dur*0.5,{...P,fenv},out);}}   // v28: a 32nd repeat (was an octave-up echo)
       if(this.debug)this.upLog.push([this.bar,s,st,pv.n,midi,deck.id,M.id]);h=Math.max(h,n.acc?1:0.75);}
     // ghost notes: a quiet neighbour tone right after a motif note (only melodic voices, never in sparse sections or rest bars)
     if(!h&&N.length&&A.section!=="sparse"&&(!pv.special||pv.special==="kalimba")&&s>0){const p=N.find(n=>n.s===s-1);
-      if(p&&!N.some(n=>n.s===s)&&r()<0.05+0.1*this.cond.p.density){const midi=toMidi(p.deg+M.tr+ci+(r()<0.5?1:-1),p.oct);
+      if(p&&!N.some(n=>n.s===s)&&r()<0.05+0.1*this.cond.p.density){const midi=this.lineNote("m"+deck.id,toMidi(p.deg+M.tr+ci+(r()<0.5?1:-1),p.oct),root,pcs,root-5,root+12,s);
         if(pv.special==="kalimba")this.marimba(t,midi+12,0.3,0,true);else this.synth(t,midi,0.32,s16*(pv.gate||1)*0.8,{...voiced(midi),fenv:M.fenv*0.7},out);
         if(this.debug)this.upLog.push([this.bar,s,st,pv.n,midi,deck.id,M.id]);h=0.3;}}
     return h;}
