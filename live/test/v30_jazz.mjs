@@ -83,7 +83,7 @@ for(const [tim,rh,mot] of [['ep','swell','vibe'],['brass','off',null],['organ','
 // assertions
 const fail=[];const chk=(c,m)=>{if(!c)fail.push(m);};
 chk(D.segments>=60,'too few segments '+D.segments);chk(Object.keys(D.families).length>=6,'families');chk(Object.keys(D.rhythms).length>=6,'rhythms');
-chk(Object.keys(D.timbres).length>=3,'timbres');chk(Object.keys(D.voicings).length>=4,'voicing styles');chk(D.distinctCombos>=Math.min(40,0.6*D.segments),'combos '+D.distinctCombos);
+chk(Object.keys(D.timbres).length>=2&&!D.timbres.organ,'timbres (v31: Rhodes + brass, the muted organ is retired)');chk(Object.keys(D.voicings).length>=4,'voicing styles');chk(D.distinctCombos>=Math.min(40,0.6*D.segments),'combos '+D.distinctCombos);
 chk(F.comboRepeat3===0,'combo repeated within 3 segments '+F.comboRepeat3);chk(F.sameAll1===0,'identical consecutive segment '+F.sameAll1);
 chk(F.famRepeat1/Math.max(1,F.pairs)<=0.2,'family repeats '+F.famRepeat1+'/'+F.pairs);chk(F.flat16===0,'16-bar segments without block variation '+F.flat16+'/'+F.n16);
 chk(F.offKey===0&&F.motOffKey===0&&F.bassOff===0,'out of key');chk(F.rootClash===0,'b9 / maj7 over the chord root '+F.rootClash);chk(F.cluster===0,'semitone cluster '+F.cluster);
