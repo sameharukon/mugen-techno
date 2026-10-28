@@ -1073,7 +1073,7 @@ Object.assign(Engine.prototype,{
     if(O.strip&&(bar>=O.strip.end||cd.closing||this.drop.active&&["bridge","outro"].includes(this.drop.type))){O.strip=null;O.stripEnded=bar;}
     let edge=false;
     if(bar%16===0){
-      if(!O.strip&&bar>=32&&bar>=O.lastStrip+40&&!cd.opening&&!cd.closing&&!this.closed&&!cd.chill&&!this.drop.active&&this.chillAmt<0.3&&!(this.jazz&&this.jazz.on)&&!this.jzPlan&&!(this.chip&&this.chip.on)&&!(this.odd&&this.odd.on)&&this.decks.length===1&&!(cd.mix&&cd.mix.state!=="planned")){
+      if(!O.strip&&bar>=32&&bar>=O.lastStrip+40&&!cd.opening&&!cd.closing&&!this.closed&&!cd.chill&&!this.drop.active&&this.chillAmt<0.3&&!(this.jazz&&this.jazz.on)&&!this.jzPlan&&!(this.chip&&this.chip.on)&&!(this.odd&&(this.odd.on||this.odd.pend))&&this.decks.length===1&&!(cd.mix&&cd.mix.state!=="planned")){
         const afterPeak=O.lastPhase==="peak"&&ph!=="peak",newDeck=bar-O.swapBar<=24||bar-(O.multi??-99)<=16,toBuild=ph==="build"&&O.lastPhase&&O.lastPhase!=="build";
         const p=afterPeak?0.9:(toBuild?0.7:(newDeck?0.6:(O.lvl<0.8?0.22:0.08)));
         if(r()<p){let len=r()<0.6?8:16;const nx=cd.events.filter(x=>x.bar>bar&&x.bar<bar+len&&["mixStart","bandSwitch","break","drop"].includes(x.type)).map(x=>x.bar);
@@ -1090,7 +1090,8 @@ Object.assign(Engine.prototype,{
     O.B=S0?{perc:S0.perc,ghost:0,fill:0,flam:0,pre:0,dbl:false,open:false,mel:0,strip:true}
       :{perc:ch?(L<0.55?1:2):(L<0.5?1:(L<0.78?2:3)),ghost:Math.max(0.15,Math.min(1,0.15+(L-0.35)/0.55)),fill:0.3+0.9*L,flam:L>0.75?1:(L>0.55?0.55:0.2),pre:L>0.75?1:(L>0.55?0.55:0.2),dbl:L>0.68,open:true,mel:1,strip:false};},
   ornPlan(x){const O=this.orn;return !O||!O.plan||O.plan.has(x);},
-  ornB(){return this.orn&&this.orn.B||{perc:3,ghost:1,fill:1,flam:1,pre:1,dbl:true,open:true,mel:1,strip:false};},
+  ornB(){const B=this.orn&&this.orn.B||{perc:3,ghost:1,fill:1,flam:1,pre:1,dbl:true,open:true,mel:1,strip:false};
+    return this.odd&&this.odd.on?{...B,mel:0,fill:0,perc:Math.min(B.perc,1),flam:Math.min(B.flam,0.2),pre:Math.min(B.pre,0.2),dbl:false}:B;},   // v26: the odd-meter pluck is the only upper voice; no fills, one perc layer
 });
 
 // chill band percussion: soft off-beat hats, dub rim / half-time backbeat, shakers, soft toms (organic), almost nothing for ambient
@@ -1104,7 +1105,7 @@ Engine.prototype.drumsChill=function(d,t,tsw,s,ev,v,M,dn,ca,cm){const P=d.pat,r=
     else if((st==="groove"||st==="minimal")&&s===12&&r()<0.85){this.hat(t,0.16*hv,0.02,0.01,0.15,1800,this.cur.clap,"bandpass");ev.clap=0.6;}}   // dub rim
   if(!M.p||kill)return;
   if(st!=="hard")this.kitPerc(d,K,t,tsw,s,ev,dn*(st==="minimal"?0.5:0.75),ca,1);   // v21: kit percussion (chill: softer, 1-2 layers)
-  if(st==="hard"&&s===0&&this.bar%4===2&&r()<0.5){this.noiseWash(t,2*16*this.s16,0.018,this.cur.perc);}
+  if(st==="hard"&&s===0&&this.bar%4===2&&r()<0.5&&!this.odd.on){this.noiseWash(t,2*16*this.s16,0.018,this.cur.perc);}
 };
 
 
@@ -1171,14 +1172,15 @@ Object.assign(Engine.prototype,{
       const g=c.createGain();g.gain.value=0;const ctl=c.createConstantSource();ctl.connect(g.gain);ctl.start();
       // HPF automated directly (no audio-rate input) so coefficients are only recomputed while it moves
       const hp=c.createBiquadFilter();hp.type="highpass";hp.Q.value=0.9;
-      this.upEnv[st]=new Env(ctl.offset,st===S.style?M.lvl:0);this.upHpEnv[st]=new Env(hp.frequency,20);this.upG[st]=g;g.connect(hp);
+      this.upEnv[st]=new Env(ctl.offset,st===S.style?M.lvl:0);this.upHpEnv[st]=new Env(hp.frequency,20);this.upG[st]=g;
+      const od=c.createGain();od.gain.value=1;(this.upOddG=this.upOddG||{})[st]=od;g.connect(od).connect(hp);   // v26: steps aside (to 0) while the odd-meter accents play
       const dry=c.createGain();dry.gain.value=M.dry;hp.connect(dry).connect(this.bus.stab);
       const ds=c.createGain();ds.gain.value=M.dly;hp.connect(ds).connect(this.send);
       const vs=c.createGain();vs.gain.value=M.verb;hp.connect(vs).connect(this.upVerb);
       this["upCtl_"+st]=ctl;(this.upSend=this.upSend||{})[st]={dry,ds,vs};}
     this.applyUpMix(S.band,0);
     this.padBus=c.createGain();this.padBus.gain.value=1;this.padEQ=c.createBiquadFilter();this.padEQ.type="peaking";this.padEQ.frequency.value=700;this.padEQ.Q.value=0.6;this.padEQ.gain.value=0;
-    this.padBus.connect(this.padEQ).connect(this.bus.stab);this.padVoices=[];   // v22: the pad steps aside (dip where the e-piano sits) during jazzy
+    this.padOdd=c.createGain();this.padOdd.gain.value=1;this.padBus.connect(this.padOdd).connect(this.padEQ).connect(this.bus.stab);this.padVoices=[];   // v22: the pad steps aside (dip where the e-piano sits) during jazzy
     this.initChip();this.initJazz();this.initOdd();
     // kick room: the kick (post distortion) sends a little of its mids into the same space as the 上モノ (KICK_GLUE.room, 0 = off)
     this.kickRoomHP=c.createBiquadFilter();this.kickRoomHP.type="highpass";this.kickRoomHP.frequency.value=320;this.kickRoomHP.Q.value=0.7;
@@ -1316,7 +1318,7 @@ Object.assign(Engine.prototype,{
 Object.assign(Engine.prototype,{
   flavourBar(t){const C=this.cond,D=this.drop,bar=this.bar,L=this.low;
     if(this.flav&&(bar>=this.flav.until||C.closing||C.mix)){const end=this.flav;this.flav=null;if(bar<end.until)this.flavCool=bar+128;C.logItem("ブレイクビート風のキック：4つ打ちに戻る","おまかせ","done",bar,t);}
-    if(this.flav||!C.auto||bar%16!==0||bar<64||L.band==="bchill"||L.style==="broken"||bar<(this.flavCool||0))return;
+    if(this.flav||!C.auto||bar%16!==0||(this.odd&&(this.odd.on||this.odd.pend))||bar<64||L.band==="bchill"||L.style==="broken"||bar<(this.flavCool||0))return;
     if(D.active||C.mix||C.chill||C.pendingBand||C.closing||C.opening||C.events.some(x=>x.bar>=bar&&x.bar<bar+16&&(["mixStart","swap","bandSwitch","chillIn","chillCore"].includes(x.type)||(x.type==="break"&&["breakdown","bridge","halftime"].includes(x.btype)))))return;
     if(this.rand()>0.14)return;
     const len=this.rand()<0.6?8:16;this.flav={from:bar,until:bar+len};this.flavCool=bar+len+128;    // >= 8 phrases between two flavours
@@ -1360,7 +1362,7 @@ Object.assign(Engine.prototype,{
   jazzBusy(){const cd=this.cond,D=this.drop;return !!((cd.mix&&cd.mix.state!=="planned")||this.decks.length>1||cd.pendingBand||D.active||this.chillAmt>0.05);},
   // v22: decided BEFORE the conductor's bar hook, so the phrase-end punctuation of a jazzy phrase is not planned at all
   jazzPre(){const J=this.jazz,C=this.chip,bar=this.bar,cd=this.cond;this.jzPlan=null;
-    if(J.on||bar%16!==0||bar<32||(this.orn&&this.orn.strip&&this.orn.strip.end>bar+2)||cd.closing||cd.opening||this.closed||this.jazzBusy()||C.on||(this.odd&&this.odd.on)||bar<(C.end>=0?C.end+16:0))return;
+    if(J.on||bar%16!==0||bar<32||(this.orn&&this.orn.strip&&this.orn.strip.end>bar+2)||cd.closing||cd.opening||this.closed||this.jazzBusy()||C.on||(this.odd&&(this.odd.on||this.odd.pend))||bar<(C.end>=0?C.end+16:0))return;
     if(bar<J.mixSeen+3||bar<J.cool||cd.p.energy>0.85||this.chillMode==="beatless")return;
     if(this.rand()>(JAZZ_P[this.low.band]||0))return;
     let len=this.rand()<0.5?8:16;const nx=cd.events.filter(x=>x.bar>=bar&&x.bar<=bar+len+2&&x.type!=="peakHit").map(x=>x.bar);
@@ -1506,8 +1508,10 @@ Object.assign(Engine.prototype,{
    grouping (3+3+3+3+4 over one bar, (4+3)x4+4 over two bars, ...) restarting with the segment is laid across the grid: a short FM pluck
    on chord tones hits the first 16th of each group, an extra hat tick accents it (the other hats dip a little), and an occasional clap
    lands on an off-kick group start. Autopilot spice: 8-16 bars from a 16-bar line, mostly in builds / peaks, using one slot of the
-   v23 phrase plan; never with chiptune / jazzy / a strip / a mix / a chill-out; the lead is thinned to its sparse section and layer-2
-   is not re-triggered meanwhile (at most: sparse lead + accents). */
+   v23 phrase plan; never with chiptune / jazzy / a strip / a mix / a chill-out.
+   v26: the pluck is the only upper voice while it plays: decided one bar ahead, every other 上モノ (lead / arps / stabs / organ / vox / drones /
+   layer-2) ramps out over that bar on its own gain and is not scheduled during the segment; it ramps back over a bar after the pluck has faded.
+   The chill pad bed only dips (-6 dB). No phrase-end fills, one perc layer, little delay / reverb on the pluck. */
 const ODD_PATS={
   g33334:{g:[3,3,3,3,4],lab:"3+3+3+3+4"},g332:{g:[3,3,2,3,3,2],lab:"3+3+2"},g43432:{g:[4,3,4,3,2],lab:"4+3+4+3+2"},
   g323323:{g:[3,2,3,3,2,3],lab:"3+2+3+3+2+3"},g4534:{g:[4,5,3,4],lab:"4+5+3+4"},
@@ -1519,12 +1523,12 @@ const ODD_P={warm:.15,build:.7,peak:.6,release:.2};   // chance per free 16-bar 
 const ODD_BAND={b120:1,b140:1,bchill:1};
 const ODD_SEAM=8,ODD_AFTER_MIX=16;   // v25b: accents start only with >= 8 clear bars after the segment (no mix / band move) and >= 16 bars after the last two-deck bar
 Object.assign(Engine.prototype,{
-  initOdd(){const c=this.ctx;this.odd={on:false,fading:false,cool:0,start:-1,end:-1,mixSeen:-99};this.oddSegs=[];this.oddLog=[];this.odr=mulberry32((this.seed||1)^0x0dd25);
+  initOdd(){const c=this.ctx;this.odd={on:false,fading:false,cool:0,start:-1,end:-1,mixSeen:-99,pend:null,duck:1,padDuck:false,cancels:0};this.oddSegs=[];this.oddLog=[];this.odr=mulberry32((this.seed||1)^0x0dd25);
     this.oddIn=c.createGain();this.oddLp=c.createBiquadFilter();this.oddLp.type="lowpass";this.oddLp.frequency.value=1200;this.oddLp.Q.value=0.6;
     this.oddFade=c.createGain();this.oddFade.gain.value=0;this.oddIn.connect(this.oddLp).connect(this.oddFade);
     const dry=c.createGain();dry.gain.value=0.9;this.oddFade.connect(dry).connect(this.bus.stab);           // upper bus (kick pump / ducking)
-    const vs=c.createGain();vs.gain.value=0.16;this.oddFade.connect(vs).connect(this.upVerb);
-    const ds=c.createGain();ds.gain.value=0.12;this.oddFade.connect(ds).connect(this.send);},
+    const vs=c.createGain();vs.gain.value=0.1;this.oddFade.connect(vs).connect(this.upVerb);
+    const ds=c.createGain();ds.gain.value=0.04;this.oddFade.connect(ds).connect(this.send);},   // v26: little delay / reverb, so no echoes smear the grouping
   oddBar(t){const O=this.odd,bar=this.bar,cd=this.cond,bd=16*this.s16,D=this.drop,r=this.odr;
     if(this.decks.length>1||(cd.mix&&cd.mix.state!=="planned")||cd.pendingBand)O.mixSeen=bar;
     const seam=b1=>cd.events.filter(x=>x.bar>=bar&&x.bar<=b1&&["mixStart","bandSwitch"].includes(x.type)).map(x=>x.bar);   // 曲のつなぎ目: deck mixes / band moves
@@ -1534,19 +1538,37 @@ Object.assign(Engine.prototype,{
       if(stop){const sg=this.oddSegs[this.oddSegs.length-1];if(sg)sg[6]=cd.closing||this.closed?"close":cd.chill?"chill":cd.pendingBand?"band":this.decks.length>1?"mix":this.chillAmt>0.1?"chillAmt":this.orn&&this.orn.strip?"strip":"break:"+D.type;}
       if(stop||bar>=O.end)this.oddOff(t,stop?bd*0.25:bd*0.3);else if(bar===O.end-1)this.oddFadeOut(t,bd);
       return;}
-    const force=this.oddForceBar!=null&&bar===this.oddForceBar;
-    if(!force){
-      if(bar%16!==0||bar<32||bar<O.cool||bar<(O.mixSeen??-99)+ODD_AFTER_MIX||cd.closing||cd.opening||this.closed||cd.chill||cd.pendingBand||(cd.mix&&cd.mix.state!=="planned")||this.decks.length>1||this.chillAmt>0.05||D.active)return;
-      if(this.flav||(this.low.style==="broken"&&this.low.band!=="bchill"))return;   // only over a straight four-on-the-floor
-      if((this.chip&&this.chip.on)||(this.jazz&&this.jazz.on)||this.jzPlan||bar<this.jazz.end+16||bar<this.chip.end+8)return;
-      const OR=this.orn;if(!OR||OR.strip||OR.stripEnded===bar||!OR.plan||OR.plan.size===0)return;    // stripped stays stripped; strip in / out lines change nothing else
-      const cur=cd.set&&cd.set.list[cd.set.idx],ph=cur?cur.phase:"build";
-      if(r()>(ODD_P[ph]||0)*(ODD_BAND[this.low.band]||0))return;}
-    let len=force&&this.oddForceLen?this.oddForceLen:(r()<0.5?8:16);
-    if(!force){const nx=cd.events.filter(x=>x.bar>bar&&x.bar<=bar+len+1&&["mixStart","bandSwitch","break","drop","chillIn","closeIn"].includes(x.type)).map(x=>x.bar);
-      if(nx.length){len=Math.min(...nx)-bar;if(len<8)return;len=len>=16?16:8;}
-      const sm=seam(bar+len+ODD_SEAM);if(sm.length){len=Math.min(...sm)-ODD_SEAM-bar;if(len<8)return;len=len>=16?16:8;}}   // never cut short by a planned mix / break; clear of the seams
-    this.oddOn(t,len,force?this.oddForcePat:null);},
+    // v26: the start is decided one bar ahead (bar 15 of the phrase): the other upper voices fade out over that bar, the accents begin on the 16-bar line
+    if(O.pend){const P0=O.pend;O.pend=null;const len=this.oddCan(bar,P0.force,P0.len);
+      if(len){this.oddOn(t,len,P0.pat);return;}
+      O.cancels++;O.cool=bar+16;this.oddDuck(t,false,bd);return;}                 // the line changed its mind (mix / break planned meanwhile): the upper voices come straight back
+    const force=this.oddForceBar!=null&&bar+1===this.oddForceBar;
+    if(!force&&(bar+1)%16!==0)return;
+    const len=this.oddCan(bar+1,force,0,true);if(!len)return;
+    O.pend={bar:bar+1,len,force,pat:force?this.oddForcePat:null};this.oddDuck(t,true,bd);},
+  // can a segment start on line b1? returns its length (8 / 16) or 0. pre: decided on the bar before (rolls the dice, picks the length)
+  oddCan(b1,force,len0,pre){const O=this.odd,cd=this.cond,D=this.drop,r=this.odr,A=this.low.arr;
+    if(force)return this.oddForceLen||16;
+    if(b1%16!==0||b1<32||b1<O.cool||b1<(O.mixSeen??-99)+ODD_AFTER_MIX||cd.closing||cd.opening||this.closed||cd.chill||cd.pendingBand||(cd.mix&&cd.mix.state!=="planned")||this.decks.length>1||this.chillAmt>0.05||D.active)return 0;
+    if(this.flav||(this.low.style==="broken"&&this.low.band!=="bchill"))return 0;   // only over a straight four-on-the-floor
+    if((this.chip&&this.chip.on)||(this.jazz&&this.jazz.on)||this.jzPlan||b1<this.jazz.end+16||b1<this.chip.end+8)return 0;
+    const OR=this.orn;if(!OR)return 0;
+    if(pre){if(OR.strip)return 0;                                                  // stripped stays stripped (a strip ending on b1 leaves that line alone too)
+      const SL=cd.set,cu=SL&&SL.list[SL.idx];if(cd.auto&&cu&&!cd.mix&&!cd.pendingBand&&SL.phr+1>=cu.phrases)return 0;}   // the setlist moves on at b1 (mix / chill / new phase): leave that line alone
+    else if(OR.strip||OR.stripEnded===b1||!OR.plan||OR.plan.size===0)return 0;
+    if(A&&A.l2Kind==="fx"&&A.l2Bar!=null&&b1<A.l2Bar+16+1)return 0;               // a layer-2 reverse cymbal swells into b1: it can't be cut cleanly, skip
+    if(pre){const cur=cd.set&&cd.set.list[cd.set.idx],ph=cur?cur.phase:"build";if(r()>(ODD_P[ph]||0)*(ODD_BAND[this.low.band]||0))return 0;}
+    let len=len0||(r()<0.5?8:16);
+    const nx=cd.events.filter(x=>x.bar>=b1&&x.bar<=b1+len+1&&["mixStart","bandSwitch","break","drop","chillIn","closeIn"].includes(x.type)).map(x=>x.bar);
+    if(nx.length){len=Math.min(...nx)-b1;if(len<8)return 0;len=len>=16?16:8;}
+    const sm=cd.events.filter(x=>x.bar>=b1&&x.bar<=b1+len+ODD_SEAM&&["mixStart","bandSwitch"].includes(x.type)).map(x=>x.bar);
+    if(sm.length){len=Math.min(...sm)-ODD_SEAM-b1;if(len<8)return 0;len=len>=16?16:8;}   // never cut short by a planned mix / break; clear of the seams
+    return len;},
+  // v26: every other upper voice (lead / arps / stabs / organ / vox / drones / layer-2) steps aside on its own gain (after the mix crossfade, before
+  // the DJ filter and the sends, so no new echoes either); the chill pad bed only dips. Linear ramps over `dur`.
+  oddDuck(t,on,dur){const O=this.odd;O.duck=on?0:1;O.padDuck=on;
+    for(const st in this.upOddG){const g=this.upOddG[st].gain;g.cancelAndHoldAtTime(t);g.linearRampToValueAtTime(on?0:1,t+dur);}
+    const pg=this.padOdd.gain;pg.cancelAndHoldAtTime(t);pg.linearRampToValueAtTime(on?0.5:1,t+dur);},
   oddOn(t,len,pat){const O=this.odd,d=this.low,r=this.odr,bd=16*this.s16,ch=d.band==="bchill",cd=this.cond;
     if(!pat||!ODD_PATS[pat])pat=pickW(r,ODD_W[d.band]||ODD_W.b120);
     const P=ODD_PATS[pat],A=d.arr,cur=cd.set&&cd.set.list[cd.set.idx];
@@ -1560,7 +1582,7 @@ Object.assign(Engine.prototype,{
     this.oddSegs.push([this.bar,this.bar+len,d.band,pat,cur?cur.phase:"",O.sec||(A&&A.section)||""]);
     cd.logItem(`変拍子アクセント ${len}小節（${P.lab}・FMプラック${O.clap?"＋クラップ":""}・キックは4つ打ちのまま）`,"おまかせ","done",this.bar,t);},
   oddFadeOut(t,dur){this.odd.fading=true;const g=this.oddFade.gain,f=this.oddLp.frequency;g.cancelAndHoldAtTime(t);g.setTargetAtTime(0,t,dur*0.3);f.cancelAndHoldAtTime(t);f.exponentialRampToValueAtTime(1200,t+dur);},
-  oddOff(t,tau){const O=this.odd;if(!O.on)return;O.on=false;O.fading=false;const g=this.oddFade.gain;g.cancelAndHoldAtTime(t);g.setTargetAtTime(0,t,tau);
+  oddOff(t,tau){const O=this.odd;if(!O.on)return;O.on=false;O.fading=false;this.oddDuck(t,false,16*this.s16*(tau<16*this.s16*0.28?0.5:1));   // the other upper voices come back over ~1 barconst g=this.oddFade.gain;g.cancelAndHoldAtTime(t);g.setTargetAtTime(0,t,tau);
     const A=O.deck&&O.deck.arr;if(A&&O.sec&&A.section==="sparse")A.section=O.sec;O.sec=null;
     const s=this.oddSegs[this.oddSegs.length-1];if(s)s[1]=this.bar;O.cool=this.bar+32+16*Math.floor(this.odr()*3);},
   // position inside the grouping: {gi: group index, start: true on its first 16th}; null when off
@@ -1708,7 +1730,7 @@ Object.assign(Engine.prototype,{
       if(((pl&&r()<0.75)||orgNow)&&P.length>1){A.variant=this.pickVariant(d,P,A.variant);const x=r();if(x<0.3)A.motif=this.newMotif(d);else if(x<0.75)A.motif=this.deriveMotif(d,A.motif);}
       else if(pl&&r()<0.5)A.motif=this.deriveMotif(d,A.motif);
       if(pl)A.layer2=r()<0.4?["pad","noise","fx"][Math.floor(r()*3)]:null;
-      if(A.layer2&&d.upOn&&this.melOK(d)&&!(this.jazz&&this.jazz.on)&&!(this.odd&&this.odd.on)&&!this.ornB().strip)this.upperLayer2(d,A.layer2,this.lastT||0);}
+      if(A.layer2&&d.upOn&&this.melOK(d)&&!(this.jazz&&this.jazz.on)&&!(this.odd&&this.odd.on)&&!this.ornB().strip){this.upperLayer2(d,A.layer2,this.lastT||0);A.l2Bar=bar;A.l2Kind=A.layer2;}}
     // chill: mellow keys / dub chords take over the 上モノ (only sparse / main sections)
     if(bar%8===0){const want=this.chillAmt>0.25&&!(this.chillGlide&&this.chillGlide.to<this.chillAmt);
       if(want&&!A.chillPatch)A.chillPatch=CHILL_PATCHES[Math.floor(r()*CHILL_PATCHES.length)];else if(!want)A.chillPatch=null;
@@ -2162,7 +2184,7 @@ class Conductor{
     if(calm)this.setParam("space",Math.max(0.75,this.p.space),16,bar);this.endGroup();
     // phrase-end punctuation: mostly kick-drop recipes (each one different), sometimes another break type
     const x=bar-this.lastChillEnd<8?1:r(),ls=[],pk=this.band==="bchill"?0.45:0.42,po=this.band==="bchill"?0.75:0.6;   // v16: techno bands punctuate a little less  // the chill return already had its kick-drop
-    const jz=this.e.jzPlan&&this.e.jzPlan.bar===bar;     // v22: a jazzy phrase is about to start -> no phrase-end punctuation inside it
+    const jz=(this.e.jzPlan&&this.e.jzPlan.bar===bar)||(this.e.odd&&this.e.odd.pend&&this.e.odd.pend.bar===bar);     // v22: a jazzy phrase is about to start -> no phrase-end punctuation inside it (v26: same for odd-meter accents)
     if(jz){}
     else if(x<pk)this.planBreak(bar,null,ls,null,"kick",{});
     else if(x<po){const bt=this.pickBreak({});if(bt!=="kick")this.planBreak(bar,null,ls,null,bt,{});else this.planBreak(bar,null,ls,null,"kick",{});}}
